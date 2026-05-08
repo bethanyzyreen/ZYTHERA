@@ -1,0 +1,28 @@
+{
+    "zyreen@gmail.com": [
+        {
+            "id": 2,
+            "name": "Modern Sofa",
+            "price": 11599,
+            "qty": 2,
+            "image": "pci\/download_(6).jpeg"
+        },
+        {
+            "id": 5,
+            "name": "Living Room Set",
+            "price": 25499,
+            "qty": 2,
+            "image": "pci\/download_(3).jpeg"
+        },
+        {
+            "id": 3,
+            "name": "Modern Chair",
+            "price": 6299,
+            "qty": 1,
+            "image": "pci\/download_(1).jpeg"
+        }
+    ],
+    "bethanyzyreen@gmail.com": [],
+    "admin@gmail.com": [],
+    "zafirah@gmail.com": []
+}
