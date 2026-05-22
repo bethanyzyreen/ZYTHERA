@@ -106,8 +106,9 @@ if (isset($_GET['delete_user'])) {
     // CASCADE in DB removes cart_items and orders for this user automatically
     deleteUser($email);
 
-    // Clean up session cart for this user
+    // Clean up session cart and orders for this user
     unset($_SESSION['cart'][$email]);
+    unset($_SESSION['orders'][$email]);
     unset($_SESSION['profile_pic'][$email]);
 
     echo json_encode(['success' => true]);

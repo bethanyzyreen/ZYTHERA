@@ -788,9 +788,14 @@ if ($searchQuery !== '') {
         foreach (($_SESSION['cart'][$uEmail] ?? []) as $ci)
             $uCartCount2 += is_array($ci) ? (int)($ci['qty'] ?? 1) : 1;
         $uSpend = 0;
-        foreach (($_SESSION['orders'][$uEmail] ?? []) as $uo)
-            foreach ($uo['items'] as $oi)
-                if (is_array($oi)) $uSpend += (float)($oi['price']??0) * (int)($oi['qty']??1);
+        foreach (($_SESSION['orders'][$uEmail] ?? []) as $uo) {
+            if (isset($uo['total']) && (float)$uo['total'] > 0) {
+                $uSpend += (float)$uo['total'];
+            } else {
+                foreach ($uo['items'] as $oi)
+                    if (is_array($oi)) $uSpend += (float)($oi['price']??0) * (int)($oi['qty']??1);
+            }
+        }
         $isAdmin = ($uData['role'] ?? 'user') === 'admin';
     ?>
     <div class="col-md-6">

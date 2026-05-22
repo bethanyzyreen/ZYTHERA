@@ -12,6 +12,7 @@ if (empty($_SESSION['logged_in_user']) && !empty($_COOKIE['zafirah_user'])) {
         $_SESSION['logged_in_user'] = $cEmail;
         $_SESSION['role']           = $cRole;
         $_SESSION['login_time']     = $_COOKIE['zafirah_login'] ?? date('h:i A');
+        $_SESSION['session_start']  = time(); // restore so cookie-expiry guard works
         // Restore cart from DB
         $_SESSION['cart'][$cEmail] = loadCart($cEmail);
         if (!isset($_SESSION['profile_pic'][$cEmail])) {
@@ -39,12 +40,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$email || !$password || !$name) {
             $message = 'Please complete all fields.';
             $msgType  = 'error';
+        } elseif (strlen($password) < 6) {
+            $message = 'Password must be at least 6 characters.';
+            $msgType  = 'error';
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $message = 'Please enter a valid email address.';
+            $msgType  = 'error';
         } elseif (isset($_SESSION['users'][$email])) {
             $message = 'Email already registered!';
             $msgType  = 'error';
         } else {
             saveUser($email, [
-                'name'        => $name,
+                'name'        => htmlspecialchars($name),
                 'password'    => password_hash($password, PASSWORD_DEFAULT),
                 'role'        => $role,
                 'profile_pic' => null,
@@ -54,10 +61,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = 'Account created! You can now log in.';
             $msgType  = 'success';
         }
-    }
 
     // ── LOGIN ────────────────────────────────────────────────
-    if (isset($_POST['login'])) {
+    } elseif (isset($_POST['login'])) {
         $userExists = isset($_SESSION['users'][$email]);
         $passOk     = $userExists && password_verify($password, $_SESSION['users'][$email]['password']);
 
@@ -274,7 +280,7 @@ function showToast(msg, type='success') {
       clearInterval(interval);
       showToast("Session expired. Please log in again.", 'error');
     }
-  }, 100);
+  }, 1000);
 })();
 </script>
 </body>

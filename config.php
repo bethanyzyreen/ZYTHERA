@@ -67,6 +67,7 @@ function saveUser(string $email, array $data): void {
 function deleteUser(string $email): void {
     getDB()->prepare("DELETE FROM users WHERE email = ?")->execute([$email]);
     unset($_SESSION['users'][$email]);
+    unset($_SESSION['orders'][$email]);
 }
 
 // ── Inventory ─────────────────────────────────────────────────
@@ -312,6 +313,9 @@ function saveOrder(string $email, array $order): void {
             ':image'      => $item['image'] ?? '',
         ]);
     }
+    // Keep session in sync
+    if (!isset($_SESSION['orders'][$email])) $_SESSION['orders'][$email] = [];
+    $_SESSION['orders'][$email][] = $order;
 }
 
 function updateOrderStatus(string $orderId, string $newStatus): bool {
@@ -323,6 +327,11 @@ function updateOrderStatus(string $orderId, string $newStatus): bool {
 function deleteUserOrders(string $email): void {
     // order_items are deleted via ON DELETE CASCADE on the orders table
     getDB()->prepare("DELETE FROM orders WHERE user_email = ?")->execute([$email]);
+    unset($_SESSION['orders'][$email]);
+}
+
+function syncOrdersSession(): void {
+    $_SESSION['orders'] = loadOrders();
 }
 
 // ── Bootstrap session on every request ───────────────────────
@@ -336,6 +345,9 @@ unset($_zUsers);
 
 // Load inventory into session (keyed by id)
 syncInventorySession();
+
+// Load all orders into session (keyed by user_email)
+syncOrdersSession();
 
 // ── Cookie-expiry auto-logout ─────────────────────────────────
 $_zCurrentScript = basename($_SERVER['PHP_SELF'] ?? '');
