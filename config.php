@@ -190,36 +190,51 @@ function saveCart(string $email, array $items): void {
 }
 
 // ── Orders ────────────────────────────────────────────────────
+
+// Shared helper: fetch all order_items for a set of DB order IDs,
+// returns [ db_order_id => [ item, ... ], ... ]
+// Uses no JSON_OBJECT — compatible with all MySQL/MariaDB versions.
+function _fetchOrderItems(array $dbIds): array {
+    if (empty($dbIds)) return [];
+    $db          = getDB();
+    $placeholders = implode(',', array_fill(0, count($dbIds), '?'));
+    $stmt = $db->prepare(
+        "SELECT order_id, product_id, name, price, qty, image
+         FROM order_items
+         WHERE order_id IN ($placeholders)
+         ORDER BY order_id, id"
+    );
+    $stmt->execute($dbIds);
+    $map = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $map[(int)$r['order_id']][] = [
+            'id'    => (int)$r['product_id'],
+            'name'  => $r['name'],
+            'price' => (float)$r['price'],
+            'qty'   => (int)$r['qty'],
+            'image' => $r['image'],
+        ];
+    }
+    return $map;
+}
+
 function loadOrders(): array {
-    $stmt = getDB()->prepare("
-        SELECT o.*, GROUP_CONCAT(
-            JSON_OBJECT(
-                'id', oi.product_id,
-                'name', oi.name,
-                'price', oi.price,
-                'qty', oi.qty,
-                'image', oi.image
-            ) ORDER BY oi.id SEPARATOR '|||'
-        ) AS items_json
-        FROM orders o
-        LEFT JOIN order_items oi ON oi.order_id = o.id
-        GROUP BY o.id
-        ORDER BY o.created_at DESC
-    ");
-    $stmt->execute();
+    $db   = getDB();
+    $rows = $db->query(
+        "SELECT * FROM orders ORDER BY created_at DESC"
+    )->fetchAll();
+
+    if (empty($rows)) return [];
+
+    $dbIds   = array_column($rows, 'id');
+    $itemMap = _fetchOrderItems($dbIds);
+
     $allOrders = [];
-    foreach ($stmt->fetchAll() as $row) {
-        $items = [];
-        if ($row['items_json']) {
-            foreach (explode('|||', $row['items_json']) as $chunk) {
-                $item = json_decode($chunk, true);
-                if ($item) $items[] = $item;
-            }
-        }
+    foreach ($rows as $row) {
         $shippingInfo = json_decode($row['shipping_info'] ?? '{}', true) ?: [];
         $allOrders[$row['user_email']][] = [
             'order_id'         => $row['order_id'],
-            'items'            => $items,
+            'items'            => $itemMap[(int)$row['id']] ?? [],
             'subtotal'         => (float)$row['subtotal'],
             'shipping'         => (float)$row['shipping'],
             'total'            => (float)$row['total'],
@@ -234,36 +249,24 @@ function loadOrders(): array {
 }
 
 function loadUserOrders(string $email): array {
-    $stmt = getDB()->prepare("
-        SELECT o.*, GROUP_CONCAT(
-            JSON_OBJECT(
-                'id', oi.product_id,
-                'name', oi.name,
-                'price', oi.price,
-                'qty', oi.qty,
-                'image', oi.image
-            ) ORDER BY oi.id SEPARATOR '|||'
-        ) AS items_json
-        FROM orders o
-        LEFT JOIN order_items oi ON oi.order_id = o.id
-        WHERE o.user_email = ?
-        GROUP BY o.id
-        ORDER BY o.created_at DESC
-    ");
+    $db   = getDB();
+    $stmt = $db->prepare(
+        "SELECT * FROM orders WHERE user_email = ? ORDER BY created_at DESC"
+    );
     $stmt->execute([$email]);
+    $rows = $stmt->fetchAll();
+
+    if (empty($rows)) return [];
+
+    $dbIds   = array_column($rows, 'id');
+    $itemMap = _fetchOrderItems($dbIds);
+
     $orders = [];
-    foreach ($stmt->fetchAll() as $row) {
-        $items = [];
-        if ($row['items_json']) {
-            foreach (explode('|||', $row['items_json']) as $chunk) {
-                $item = json_decode($chunk, true);
-                if ($item) $items[] = $item;
-            }
-        }
+    foreach ($rows as $row) {
         $shippingInfo = json_decode($row['shipping_info'] ?? '{}', true) ?: [];
         $orders[] = [
             'order_id'         => $row['order_id'],
-            'items'            => $items,
+            'items'            => $itemMap[(int)$row['id']] ?? [],
             'subtotal'         => (float)$row['subtotal'],
             'shipping'         => (float)$row['shipping'],
             'total'            => (float)$row['total'],
