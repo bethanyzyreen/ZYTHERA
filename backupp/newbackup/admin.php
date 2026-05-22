@@ -643,7 +643,7 @@ if ($searchQuery !== '') {
     </div>
 
     <?php
-    // Always load orders fresh from DB for admin
+    // Always load orders fresh from file for admin
     $allOrders2    = loadOrders();
     $totalOrdCount = 0;
     $grandTotal2   = 0;
