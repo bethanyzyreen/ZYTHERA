@@ -8,7 +8,8 @@ if (empty($_SESSION['logged_in_user'])) {
 
 $userEmail = $_SESSION['logged_in_user'];
 if (!isset($_SESSION['users'][$userEmail])) {
-    // Clear only login keys — keep session alive so inventory stays in session.
+    
+    
     $keysToRemove = ['logged_in_user', 'role', 'login_time', 'session_start'];
     foreach ($keysToRemove as $_k) unset($_SESSION[$_k]);
     header('Location: logsign.php');
@@ -53,13 +54,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
         $shippingFee = $subtotalAmt > 0 ? 150 : 0;
         $totalAmt    = $subtotalAmt + $shippingFee;
 
-        // Deduct stock from inventory in DB
-        $db = getDB();
-        $stockStmt = $db->prepare("UPDATE products SET stock = GREATEST(0, stock - ?) WHERE id = ?");
-        foreach ($cart as $ci) {
-            $stockStmt->execute([(int)($ci['qty'] ?? 1), (int)($ci['id'] ?? 0)]);
+        // Deduct stock from inventory
+        $invList = loadInventory();
+        $invMap  = [];
+        foreach ($invList as $inv) {
+            $obj = is_object($inv) ? $inv : (object)$inv;
+            $invMap[(int)$obj->id] = $obj;
         }
-        syncInventorySession();
+        foreach ($cart as $ci) {
+            $pid = (int)($ci['id'] ?? 0);
+            $qty = (int)($ci['qty'] ?? 1);
+            if (isset($invMap[$pid])) {
+                $invMap[$pid]->stock = max(0, (int)$invMap[$pid]->stock - $qty);
+            }
+        }
+        saveInventory($invMap);
 
         // Save order
         if (!isset($_SESSION['orders'][$userEmail])) $_SESSION['orders'][$userEmail] = [];
@@ -84,17 +93,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             ],
         ];
 
-        // Save order to DB
-        saveOrder($userEmail, $newOrder);
+        // Load current orders from file, add new order, save back to file
+        $allOrders = loadOrders();
+        if (!isset($allOrders[$userEmail])) $allOrders[$userEmail] = [];
+        $allOrders[$userEmail][] = $newOrder;
+        saveOrders($allOrders);
 
-        // Clear only the items that were just ordered from cart in DB
-        $orderedIds = array_map('intval', array_column($newOrder['items'], 'id'));
+        // Clear only the items that were just ordered — not the entire cart
+        $orderedIds = array_column($newOrder['items'], 'id');
+        $orderedIds = array_map('intval', $orderedIds);
         $_SESSION['cart'][$userEmail] = array_values(
             array_filter($_SESSION['cart'][$userEmail], function($ci) use ($orderedIds) {
                 return !in_array((int)($ci['id'] ?? 0), $orderedIds);
             })
         );
-        saveCart($userEmail, $_SESSION['cart'][$userEmail]);
+        $allCarts = loadCarts();
+        $allCarts[$userEmail] = $_SESSION['cart'][$userEmail];
+        saveCarts($allCarts);
 
         // Store flash data in session so profile.php can show the confirmation
         $_SESSION['order_flash'] = [

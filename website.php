@@ -746,7 +746,7 @@ usort($inventory, function ($a, $b) {
     // ── Cart state seeded from PHP session ───────────────────────
     let cartItemsJS = <?= json_encode(array_values($_SESSION['cart'][$userEmail] ?? [])) ?>;
     // Stock map from PHP inventory
-    const stockMap = <?= json_encode(array_map(function($i) { return (int)$i->stock; }, $_SESSION['inventory'] ?? [])) ?>;
+    const stockMap = <?= json_encode(array_map(fn($i) => (int)$i->stock, $_SESSION['inventory'] ?? [])) ?>;
 
     // ── Open / Close cart panel ───────────────────────────────────
     function openCart() {

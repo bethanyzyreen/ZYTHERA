@@ -8,7 +8,8 @@ if (empty($_SESSION['logged_in_user'])) {
 
 $userEmail = $_SESSION['logged_in_user'];
 if (!isset($_SESSION['users'][$userEmail])) {
-    // Clear only login keys — keep session alive so inventory stays in session.
+    // Clear only login keys — do NOT session_destroy() so cart/orders persisted
+    
     $keysToRemove = ['logged_in_user', 'role', 'login_time', 'session_start'];
     foreach ($keysToRemove as $_k) unset($_SESSION[$_k]);
     header('Location: logsign.php');
@@ -36,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($newName) $user['name'] = htmlspecialchars($newName);
         if ($newPass && strlen($newPass) >= 6)
             $user['password'] = password_hash($newPass, PASSWORD_DEFAULT);
-        saveUser($userEmail, $user); // persist to DB
+        saveUsers($_SESSION['users']);
         header('Location: profile.php?updated=1');
         exit;
     }
@@ -64,8 +65,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         unset($ci);
         $cart = array_values($cart);
 
-        // Persist cart changes to DB
-        saveCart($userEmail, $cart);
+        // Persist cart changes to file
+        $allCarts = loadCarts();
+        $allCarts[$userEmail] = $cart;
+        saveCarts($allCarts);
 
         // AJAX response
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
@@ -90,10 +93,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'png'=>'image/png','gif'=>'image/gif','webp'=>'image/webp'];
                 $b64     = base64_encode(file_get_contents($f['tmp_name']));
                 $picData = 'data:' . ($mimeMap[$ext] ?? 'image/jpeg') . ';base64,' . $b64;
-                // Store in session (fast access) AND persist to DB
+                // Store in session
                 $_SESSION['profile_pic'][$userEmail] = $picData;
                 $user['profile_pic'] = $picData;
-                saveUser($userEmail, $user);
+                saveUsers($_SESSION['users']);
             }
         }
         header('Location: profile.php');
@@ -104,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['remove_pic'])) {
         $_SESSION['profile_pic'][$userEmail] = null;
         $user['profile_pic'] = null;
-        saveUser($userEmail, $user);
+        saveUsers($_SESSION['users']);
         header('Location: profile.php');
         exit;
     }
@@ -112,8 +115,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── Data for rendering ──────────────────────────────────────────
 $cart   = ($userRole !== 'admin') ? ($_SESSION['cart'][$userEmail] ?? []) : [];
-// Always load orders fresh from DB
-$orders = ($userRole !== 'admin') ? loadUserOrders($userEmail) : [];
+// Always load orders fresh from file
+$orders = ($userRole !== 'admin') ? (loadOrders()[$userEmail] ?? []) : [];
 $pic    = $_SESSION['profile_pic'][$userEmail];
 
 // Stock map from current inventory
@@ -415,13 +418,13 @@ foreach ($cart as $ci) $cartTotalQty += (int)($ci['qty'] ?? 1);
             <?php foreach (array_reverse($orders) as $o): ?>
                 <?php
                 $oStatus  = $o['status'] ?? 'Pending';
-                switch(strtolower($oStatus)) {
-                    case 'delivered': case 'completed': $stCls = 'st-delivered'; break;
-                    case 'cancelled':                   $stCls = 'st-cancelled'; break;
-                    case 'shipped':                     $stCls = 'st-shipped';   break;
-                    case 'processing':                  $stCls = 'st-processing'; break;
-                    default:                            $stCls = 'st-pending';   break;
-                }
+                $stCls    = match(strtolower($oStatus)) {
+                    'delivered', 'completed' => 'st-delivered',
+                    'cancelled'              => 'st-cancelled',
+                    'shipped'                => 'st-shipped',
+                    'processing'             => 'st-processing',
+                    default                  => 'st-pending'
+                };
                 $oSub     = (float)($o['subtotal'] ?? 0);
                 $oShip    = is_numeric($o['shipping'] ?? null) ? (float)$o['shipping'] : 150;
                 $oTotal   = (float)($o['total'] ?? ($oSub + $oShip));
