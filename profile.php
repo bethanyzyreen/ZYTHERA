@@ -415,13 +415,13 @@ foreach ($cart as $ci) $cartTotalQty += (int)($ci['qty'] ?? 1);
             <?php foreach (array_reverse($orders) as $o): ?>
                 <?php
                 $oStatus  = $o['status'] ?? 'Pending';
-                $stCls    = match(strtolower($oStatus)) {
-                    'delivered', 'completed' => 'st-delivered',
-                    'cancelled'              => 'st-cancelled',
-                    'shipped'                => 'st-shipped',
-                    'processing'             => 'st-processing',
-                    default                  => 'st-pending'
-                };
+                switch(strtolower($oStatus)) {
+                    case 'delivered': case 'completed': $stCls = 'st-delivered'; break;
+                    case 'cancelled':                   $stCls = 'st-cancelled'; break;
+                    case 'shipped':                     $stCls = 'st-shipped';   break;
+                    case 'processing':                  $stCls = 'st-processing'; break;
+                    default:                            $stCls = 'st-pending';   break;
+                }
                 $oSub     = (float)($o['subtotal'] ?? 0);
                 $oShip    = is_numeric($o['shipping'] ?? null) ? (float)$o['shipping'] : 150;
                 $oTotal   = (float)($o['total'] ?? ($oSub + $oShip));

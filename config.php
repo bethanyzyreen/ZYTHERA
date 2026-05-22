@@ -428,14 +428,14 @@ class Product {
         $this->category = $category; $this->image = $image;
     }
 
-    public function __get(string $prop): mixed {
+    public function __get(string $prop) {
         if ($prop === 'price') return $this->price;
         if ($prop === 'stock') return $this->stock;
         if ($prop === 'id')    return $this->id;
         return null;
     }
 
-    public function __set(string $prop, mixed $value): void {
+    public function __set(string $prop, $value): void {
         if ($prop === 'price') {
             $this->price = max(0, (float)str_replace([',','₱',' '], '', (string)$value));
         }

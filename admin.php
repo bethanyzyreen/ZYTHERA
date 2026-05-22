@@ -447,7 +447,7 @@ if (!in_array($loggedIn, ADMIN_EMAILS, true)) {
 <?php
 $inventory   = $_SESSION['inventory'] ?? [];
 $searchQuery = trim($_GET['search'] ?? '');
-uasort($inventory, fn($a,$b) => $a->id <=> $b->id);
+uasort($inventory, function($a,$b) { return $a->id <=> $b->id; });
 if ($searchQuery !== '') {
     $needle = strtolower($searchQuery);
     $inventory = array_filter($inventory, function($item) use ($needle) {
@@ -589,8 +589,8 @@ if ($searchQuery !== '') {
     <?php
     $inv = $_SESSION['inventory'] ?? [];
     $totalProducts = count($inv);
-    $outOfStock    = count(array_filter($inv, fn($i)=>((int)($i->stock??0))===0));
-    $lowStock      = count(array_filter($inv, fn($i)=>((int)($i->stock??0))>0 && ((int)($i->stock??0))<=5));
+    $outOfStock    = count(array_filter($inv, function($i){ return ((int)($i->stock??0))===0; }));
+    $lowStock      = count(array_filter($inv, function($i){ return ((int)($i->stock??0))>0 && ((int)($i->stock??0))<=5; }));
     $totalUsers    = count($_SESSION['users'] ?? []);
     $allOrd        = $_SESSION['orders'] ?? [];
     $totalOrders   = array_sum(array_map('count', $allOrd));
