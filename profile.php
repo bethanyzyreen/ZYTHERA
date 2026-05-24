@@ -7,42 +7,36 @@ if (empty($_SESSION['logged_in_user'])) {
 }
 
 $userEmail = $_SESSION['logged_in_user'];
-if (!isset($_SESSION['users'][$userEmail])) {
-    // Clear only login keys — do NOT session_destroy() so cart/orders persisted
-    
+$userRole  = $_SESSION['role'] ?? 'user';
+
+// ── Load user from DB ─────────────────────────────────────────
+$db       = getDBConnection();
+$uStmt    = $db->prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
+$uStmt->execute([$userEmail]);
+$user     = $uStmt->fetch();
+
+if (!$user) {
     $keysToRemove = ['logged_in_user', 'role', 'login_time', 'session_start'];
     foreach ($keysToRemove as $_k) unset($_SESSION[$_k]);
     header('Location: logsign.php');
     exit;
 }
 
-$user     = &$_SESSION['users'][$userEmail];
-$userRole = $_SESSION['role'] ?? 'user';
-
-if (!isset($_SESSION['profile_pic'][$userEmail])) {
-    $uPic = is_array($user) ? ($user['profile_pic'] ?? null) : ($user->profile_pic ?? null);
-    $_SESSION['profile_pic'][$userEmail] = $uPic;
-}
-
-if ($userRole !== 'admin') {
-    if (!isset($_SESSION['cart'][$userEmail]))   $_SESSION['cart'][$userEmail]   = [];
-    if (!isset($_SESSION['orders'][$userEmail])) $_SESSION['orders'][$userEmail] = [];
-}
+// ── Normalize user object ─────────────────────────────────────
+$userName = $user->name;
+$pic      = $user->profile_pic ?? null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── Update profile ──────────────────────────────────────────
-if (isset($_POST['update_profile'])) {
-    $newName = trim($_POST['name'] ?? '');
-    $newPass = trim($_POST['password'] ?? '');
-    if (is_array($user)) {
-        if ($newName) $user['name'] = htmlspecialchars($newName);
-        if ($newPass && strlen($newPass) >= 6) $user['password'] = password_hash($newPass, PASSWORD_DEFAULT);
-    } else {
-        if ($newName) $user->name = htmlspecialchars($newName);
-        if ($newPass && strlen($newPass) >= 6) $user->password = password_hash($newPass, PASSWORD_DEFAULT);
-    }
-        saveUsers($_SESSION['users']);
+    if (isset($_POST['update_profile'])) {
+        $newName = trim($_POST['name'] ?? '');
+        $newPass = trim($_POST['password'] ?? '');
+        $hashed  = ($newPass && strlen($newPass) >= 6)
+                   ? password_hash($newPass, PASSWORD_DEFAULT)
+                   : null;
+        $safeName = $newName ? htmlspecialchars($newName) : $userName;
+        saveUserToDB($userEmail, $safeName, $hashed, null);
         header('Location: profile.php?updated=1');
         exit;
     }
@@ -51,29 +45,36 @@ if (isset($_POST['update_profile'])) {
     if (isset($_POST['update_qty']) && $userRole !== 'admin') {
         $itemId = (int)($_POST['item_id'] ?? 0);
         $action = $_POST['qty_action'] ?? '';
-        $cart   = &$_SESSION['cart'][$userEmail];
+
+        // Load current cart from DB
+        $cart = loadCartForUser($userEmail);
 
         $invStock = [];
         foreach ($_SESSION['inventory'] ?? [] as $inv) {
             $invStock[(int)$inv->id] = (int)$inv->stock;
         }
 
-        foreach ($cart as $k => &$ci) {
+        $newQty = null;
+        foreach ($cart as &$ci) {
             if ((int)$ci['id'] === $itemId) {
                 $maxStock = $invStock[$itemId] ?? 9999;
                 if ($action === 'plus')   $ci['qty'] = min($maxStock, (int)$ci['qty'] + 1);
                 if ($action === 'minus')  $ci['qty'] = max(1, (int)$ci['qty'] - 1);
-                if ($action === 'remove') unset($cart[$k]);
+                if ($action === 'remove') $ci['qty'] = 0;
+                $newQty = (int)$ci['qty'];
                 break;
             }
         }
         unset($ci);
-        $cart = array_values($cart);
 
-        // Persist cart changes to file
-        $allCarts = loadCarts();
-        $allCarts[$userEmail] = $cart;
-        saveCarts($allCarts);
+        // Persist to DB
+        if ($newQty !== null) {
+            saveCartItem($userEmail, $itemId, $newQty);
+        }
+
+        // Reload fresh cart
+        $cart = loadCartForUser($userEmail);
+        $_SESSION['cart'][$userEmail] = $cart;
 
         // AJAX response
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
@@ -98,10 +99,7 @@ if (isset($_POST['update_profile'])) {
                             'png'=>'image/png','gif'=>'image/gif','webp'=>'image/webp'];
                 $b64     = base64_encode(file_get_contents($f['tmp_name']));
                 $picData = 'data:' . ($mimeMap[$ext] ?? 'image/jpeg') . ';base64,' . $b64;
-                // Store in session
-                $_SESSION['profile_pic'][$userEmail] = $picData;
-                $user['profile_pic'] = $picData;
-                saveUsers($_SESSION['users']);
+                saveUserToDB($userEmail, $userName, null, $picData);
             }
         }
         header('Location: profile.php');
@@ -110,19 +108,51 @@ if (isset($_POST['update_profile'])) {
 
     // ── Remove profile photo ────────────────────────────────────
     if (isset($_POST['remove_pic'])) {
-        $_SESSION['profile_pic'][$userEmail] = null;
-        $user['profile_pic'] = null;
-        saveUsers($_SESSION['users']);
+        saveUserToDB($userEmail, $userName, null, '');
         header('Location: profile.php');
         exit;
     }
 }
 
 // ── Data for rendering ──────────────────────────────────────────
-$cart   = ($userRole !== 'admin') ? ($_SESSION['cart'][$userEmail] ?? []) : [];
-// Always load orders fresh from file
-$orders = ($userRole !== 'admin') ? (loadOrders()[$userEmail] ?? []) : [];
-$pic    = $_SESSION['profile_pic'][$userEmail];
+$cart   = ($userRole !== 'admin') ? loadCartForUser($userEmail) : [];
+$_SESSION['cart'][$userEmail] = $cart;
+
+// ── Load orders from DB ───────────────────────────────────────
+$ordersRaw = ($userRole !== 'admin') ? loadOrders() : [];
+$orders    = [];
+foreach ($ordersRaw as $o) {
+    if (($o->user_email ?? '') === $userEmail) {
+        $oArr = [
+            'order_id'        => $o->order_id,
+            'status'          => $o->status,
+            'subtotal'        => (float)$o->subtotal,
+            'shipping'        => (float)$o->shipping,
+            'total'           => (float)$o->total,
+            'date'            => $o->date,
+            'pay_method'      => $o->pay_method,
+            'shipping_address'=> $o->address . ', ' . $o->city . ', ' . $o->province . ' ' . $o->zip,
+            'items'           => [],
+        ];
+        foreach ($o->items as $oi) {
+            $oArr['items'][] = [
+                'id'    => (int)$oi->product_id,
+                'name'  => $oi->product_name,
+                'price' => (float)$oi->price,
+                'qty'   => (int)$oi->qty,
+                'image' => '',
+            ];
+        }
+        $orders[] = $oArr;
+    }
+}
+
+// Reload fresh user data for rendering (in case we just saved)
+$uStmt->execute([$userEmail]);
+$user = $uStmt->fetch();
+if (!$user) { $user = (object)['name' => '', 'email' => $userEmail, 'profile_pic' => null]; }
+$userName = $user->name;
+$pic      = $user->profile_pic ?? null;
 
 // Stock map from current inventory
 $stockMap = [];
@@ -319,12 +349,12 @@ foreach ($cart as $ci) $cartTotalQty += (int)($ci['qty'] ?? 1);
                 <?php if ($pic): ?>
                     <img src="<?= htmlspecialchars($pic) ?>" alt="Profile photo">
                 <?php else: ?>
-                    <?= strtoupper(substr($user['name'] ?? 'U', 0, 1)) ?>
+                    <?= strtoupper(substr($userName, 0, 1)) ?>
                 <?php endif; ?>
                 <div class="avatar-overlay"><i class="fas fa-camera" style="color:#fff;font-size:1.3rem;"></i></div>
             </div>
 
-            <h4 class="mb-1 fw-bold"><?= htmlspecialchars($user['name']) ?></h4>
+            <h4 class="mb-1 fw-bold"><?= htmlspecialchars($userName) ?></h4>
             <p class="mb-1 opacity-75" style="font-size:.85rem;"><?= htmlspecialchars($userEmail) ?></p>
             <span class="badge-role <?= $userRole === 'admin' ? 'badge-admin' : 'badge-user' ?>">
                 <?= strtoupper($userRole) ?>
@@ -357,7 +387,7 @@ foreach ($cart as $ci) $cartTotalQty += (int)($ci['qty'] ?? 1);
             <form method="POST">
                 <div class="mb-3">
                     <label class="form-label small fw-semibold" style="color:var(--green);">Full Name</label>
-                    <input class="form-control" name="name" value="<?= htmlspecialchars($user['name']) ?>" required>
+                    <input class="form-control" name="name" value="<?= htmlspecialchars($userName) ?>" required>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-semibold" style="color:var(--green);">New Password</label>
@@ -738,7 +768,7 @@ if (isset($_GET['order_placed']) && !empty($_SESSION['order_flash'])) {
       </div>
       <h4 style="font-family:'Playfair Display',serif;color:#fff;margin-bottom:6px;font-size:1.6rem;">Order Placed!</h4>
       <p style="color:rgba(255,255,255,.72);font-size:.88rem;margin-bottom:16px;">
-        Salamat, <strong style="color:#fff;"><?= htmlspecialchars($user['name'] ?? '') ?></strong>! Confirmed and being processed.
+        Salamat, <strong style="color:#fff;"><?= htmlspecialchars($userName) ?></strong>! Confirmed and being processed.
       </p>
       <div style="display:inline-flex;align-items:center;gap:8px;
                   background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.28);

@@ -1,90 +1,112 @@
 <?php
 // ── addcart.php ───────────────────────────────────────────────
-// AJAX endpoint called by website.php when a user clicks "Add to Cart".
-// Always responds with JSON.
+// AJAX endpoint: adds/updates a product in the cart.
+// Called by website.php's addToCart() JS function via fetch POST.
+// Returns JSON: { success, cart, total_items } or { redirect } or { message }
 // ─────────────────────────────────────────────────────────────
+
+// Suppress PHP error output so errors don't corrupt JSON
+ini_set('display_errors', 0);
+error_reporting(0);
+
+// Buffer everything so config.php cannot accidentally emit HTML
+ob_start();
+
 require 'config.php';
+
+// Discard anything config.php may have echoed (errors, notices, etc.)
+ob_end_clean();
+
+// Now safe to set JSON header
 header('Content-Type: application/json');
 
-// Must be logged in
+// ── Must be logged in ─────────────────────────────────────────
 if (empty($_SESSION['logged_in_user'])) {
-    echo json_encode(['success' => false, 'redirect' => 'logsign.php']);
+    echo json_encode(['redirect' => 'logsign.php']);
     exit;
 }
 
 $userEmail = $_SESSION['logged_in_user'];
+$userRole  = $_SESSION['role'] ?? 'user';
 
-// Only POST accepted
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false, 'message' => 'Invalid request.']);
+// ── Admins cannot add to cart ─────────────────────────────────
+if ($userRole === 'admin') {
+    echo json_encode(['success' => false, 'message' => 'Admins cannot add to cart.']);
     exit;
 }
 
-$productId = (int)($_POST['id']    ?? 0);
-$name      = trim($_POST['name']   ?? '');
-$price     = (float)($_POST['price'] ?? 0);
-$qty       = max(1, (int)($_POST['qty'] ?? 1));
-$image     = trim($_POST['image']  ?? '');
+// ── Read & validate input ─────────────────────────────────────
+$productId = (int)($_POST['id']  ?? 0);
+$addQty    = (int)($_POST['qty'] ?? 1);
 
-if ($productId <= 0 || $name === '') {
-    echo json_encode(['success' => false, 'message' => 'Invalid product data.']);
+if ($productId <= 0 || $addQty <= 0) {
+    echo json_encode(['success' => false, 'message' => 'Invalid product or quantity.']);
     exit;
 }
 
-// Check stock from session inventory
-$invItem = $_SESSION['inventory'][$productId] ?? null;
-if (!$invItem) {
+// ── Load product from DB ──────────────────────────────────────
+try {
+    $db   = getDBConnection();
+    $stmt = $db->prepare("SELECT * FROM inventory WHERE id = ? LIMIT 1");
+    $stmt->execute([$productId]);
+    $product = $stmt->fetch();
+} catch (PDOException $e) {
+    echo json_encode(['success' => false, 'message' => 'Database error.']);
+    exit;
+}
+
+if (!$product) {
     echo json_encode(['success' => false, 'message' => 'Product not found.']);
     exit;
 }
 
-$availableStock = (int)$invItem->stock;
-if ($availableStock <= 0) {
-    echo json_encode(['success' => false, 'message' => 'This item is out of stock.']);
+if ((int)$product->stock <= 0) {
+    echo json_encode(['success' => false, 'message' => 'Sorry, this item is out of stock.']);
     exit;
 }
 
-// Load current cart from session (already synced from DB at login / page load)
-if (!isset($_SESSION['cart'][$userEmail])) {
-    $_SESSION['cart'][$userEmail] = loadCart($userEmail);
-}
-$cart = &$_SESSION['cart'][$userEmail];
-
-// Find if product already in cart
-$found = false;
-foreach ($cart as &$item) {
-    if ((int)$item['id'] === $productId) {
-        $newQty = (int)$item['qty'] + $qty;
-        // Cap at available stock
-        $item['qty'] = min($newQty, $availableStock);
-        $found = true;
+// ── Check current qty already in cart ────────────────────────
+$currentCart = loadCartForUser($userEmail);
+$existingQty = 0;
+foreach ($currentCart as $ci) {
+    if ((int)$ci['id'] === $productId) {
+        $existingQty = (int)$ci['qty'];
         break;
     }
 }
-unset($item);
 
-if (!$found) {
-    $cart[] = [
-        'id'    => $productId,
-        'name'  => $name,
-        'price' => $price,
-        'qty'   => min($qty, $availableStock),
-        'color' => '',
-        'image' => $image,
-    ];
+$newQty = $existingQty + $addQty;
+
+// ── Cap at available stock ────────────────────────────────────
+$maxStock = (int)$product->stock;
+if ($newQty > $maxStock) {
+    $newQty = $maxStock;
+    if ($existingQty >= $maxStock) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'You already have the maximum available stock (' . $maxStock . ') in your cart.'
+        ]);
+        exit;
+    }
 }
 
-// Persist to DB
-saveCart($userEmail, $cart);
+// ── Upsert into carts table ───────────────────────────────────
+saveCartItem($userEmail, $productId, $newQty);
 
-// Count total items for badge
+// ── Reload cart from DB for fresh response ────────────────────
+$updatedCart = loadCartForUser($userEmail);
+
+// ── Sync session ──────────────────────────────────────────────
+$_SESSION['cart'][$userEmail] = $updatedCart;
+
+// ── Compute total items in cart ───────────────────────────────
 $totalItems = 0;
-foreach ($cart as $ci) {
-    $totalItems += (int)($ci['qty'] ?? 1);
+foreach ($updatedCart as $ci) {
+    $totalItems += (int)$ci['qty'];
 }
 
 echo json_encode([
     'success'     => true,
-    'cart'        => array_values($cart),
+    'cart'        => array_values($updatedCart),
     'total_items' => $totalItems,
 ]);

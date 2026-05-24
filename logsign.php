@@ -28,17 +28,8 @@ if (empty($_SESSION['logged_in_user']) && !empty($_COOKIE['zafirah_user'])) {
         $_SESSION['role']           = $cRole;
         $_SESSION['login_time']     = $_COOKIE['zafirah_login'] ?? date('h:i A');
 
-        if (!isset($_SESSION['cart'][$cEmail])) {
-            $_SESSION['cart'][$cEmail] = [];
-        }
-
-        if (!isset($_SESSION['orders'][$cEmail])) {
-            $_SESSION['orders'][$cEmail] = [];
-        }
-
-        if (!isset($_SESSION['profile_pic'][$cEmail])) {
-            $_SESSION['profile_pic'][$cEmail] = null;
-        }
+        // Load cart from DB into session
+        $_SESSION['cart'][$cEmail] = loadCartForUser($cEmail);
     }
 }
 
@@ -156,45 +147,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $exp = time() + 43200;
 
-                    setcookie(
-                        'zafirah_user',
-                        $user->email,
-                        $exp,
-                        '/'
-                    );
+                    setcookie('zafirah_user',  $user->email,     $exp, '/');
+                    setcookie('zafirah_role',  $user->role,      $exp, '/');
+                    setcookie('zafirah_name',  $user->name,      $exp, '/');
+                    setcookie('zafirah_login', date('h:i A'),    $exp, '/');
 
-                    setcookie(
-                        'zafirah_role',
-                        $user->role,
-                        $exp,
-                        '/'
-                    );
-
-                    setcookie(
-                        'zafirah_name',
-                        $user->name,
-                        $exp,
-                        '/'
-                    );
-
-                    setcookie(
-                        'zafirah_login',
-                        date('h:i A'),
-                        $exp,
-                        '/'
-                    );
-
-                    if (!isset($_SESSION['cart'][$user->email])) {
-                        $_SESSION['cart'][$user->email] = [];
-                    }
-
-                    if (!isset($_SESSION['orders'][$user->email])) {
-                        $_SESSION['orders'][$user->email] = [];
-                    }
-
-                    if (!isset($_SESSION['profile_pic'][$user->email])) {
-                        $_SESSION['profile_pic'][$user->email] = null;
-                    }
+                    // Load cart from DB into session
+                    $_SESSION['cart'][$user->email] = loadCartForUser($user->email);
 
                     header(
                         'Location: ' .
