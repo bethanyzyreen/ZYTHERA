@@ -208,7 +208,7 @@ body{background:var(--cream);padding-top:70px;}
 
 <!-- HERO -->
 <div class="hero">
-  <img src="/php_work/e-commerce/pci/image_8.png" class="hero-img">
+  <img src="pci/image_8.png" class="hero-img">
   <div class="hero-text">
     "A quiet collection of furniture crafted for lives that deserve stillness, beauty, and meaning."
     <br>
@@ -393,7 +393,7 @@ body{background:var(--cream);padding-top:70px;}
 </section>
 
 <footer class="footer">
-  <img src="/php_work/e-commerce/pci/Group_15.svg" class="footer-logo">
+  <img src="pci/Group_15.svg" class="footer-logo">
   <div class="brand">ZAFIRAH</div>
 </footer>
 <div id="toast-msg" class="toast-fixed"></div>

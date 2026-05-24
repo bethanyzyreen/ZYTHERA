@@ -1,20 +1,8 @@
 <?php
 require 'config.php';
 $userEmail  = $_SESSION['logged_in_user'] ?? null;
-$userName = null;
-if ($userEmail) {
-
-    $db = getDBConnection();
-
-    $stmt = $db->prepare("SELECT * FROM users WHERE email = ?");
-    $stmt->execute([$userEmail]);
-
-    $uObj = $stmt->fetch();
-
-    if ($uObj) {
-        $userName = $uObj->name;
-    }
-}
+$userName   = ($userEmail && isset($_SESSION['users'][$userEmail]))
+  ? $_SESSION['users'][$userEmail]['name'] : null;
 $userRole   = $_SESSION['role'] ?? 'user';
 $loginTime  = $_SESSION['login_time'] ?? null;
 
@@ -434,7 +422,7 @@ usort($inventory, function ($a, $b) {
 
   <!-- HERO -->
   <div class="hero">
-    <img src="pci/image_8.png" class="hero-img">
+    <img src="/php_work/e-commerce/pci/image_8.png" class="hero-img">
     <div class="hero-text">
       "A quiet collection of furniture crafted for lives that deserve stillness, beauty, and meaning."
       <br>
@@ -624,7 +612,7 @@ usort($inventory, function ($a, $b) {
   </section>
 
   <footer class="footer">
-    <img src="pci/Group_15.svg" class="footer-logo">
+    <img src="/php_work/e-commerce/pci/Group_15.svg" class="footer-logo">
     <div class="brand">ZAFIRAH</div>
   </footer>
   <!-- ── CART SLIDE-OUT PANEL — hidden for admin ── -->

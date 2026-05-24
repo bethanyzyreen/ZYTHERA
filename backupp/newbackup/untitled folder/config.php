@@ -1,10 +1,14 @@
 <?php
 
 date_default_timezone_set('Asia/Manila');
+// Session server-side lifetime: 12 hours of inactivity (43200 seconds)
+ini_set('session.gc_maxlifetime', 43200);
+ini_set('session.cookie_lifetime', 0);
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// ── Inventory: persisted to file so products survive session resets ──
 define('INVENTORY_FILE', __DIR__ . '/data/inventory.json');
 
 function loadInventory(): array {
@@ -16,100 +20,59 @@ function loadInventory(): array {
 }
 
 function saveInventory(array $inventory): void {
-
-    try {
-
-        $db = getDBConnection();
-
-        foreach ($inventory as $item) {
-
-            $obj = is_array($item) ? (object)$item : $item;
-
-            // CHECK IF PRODUCT EXISTS
-            $check = $db->prepare("
-                SELECT id FROM inventory
-                WHERE id = ?
-            ");
-
-            $check->execute([
-                (int)$obj->id
-            ]);
-
-            // ── UPDATE EXISTING PRODUCT ─────────────────────
-            if ($check->fetch()) {
-
-                $stmt = $db->prepare("
-                    UPDATE inventory SET
-                        name = ?,
-                        size = ?,
-                        color = ?,
-                        price = ?,
-                        description = ?,
-                        stock = ?,
-                        category = ?,
-                        image = ?
-                    WHERE id = ?
-                ");
-
-                $stmt->execute([
-                    $obj->name,
-                    $obj->size,
-                    $obj->color,
-                    (float)$obj->price,
-                    $obj->description,
-                    (int)$obj->stock,
-                    $obj->category,
-                    $obj->image,
-                    (int)$obj->id
-                ]);
-
-            } else {
-
-                // ── INSERT NEW PRODUCT ──────────────────────
-                $stmt = $db->prepare("
-                    INSERT INTO inventory
-                    (
-                        id,
-                        name,
-                        size,
-                        color,
-                        price,
-                        description,
-                        stock,
-                        category,
-                        image
-                    )
-                    VALUES
-                    (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ");
-
-                $stmt->execute([
-                    (int)$obj->id,
-                    $obj->name,
-                    $obj->size,
-                    $obj->color,
-                    (float)$obj->price,
-                    $obj->description,
-                    (int)$obj->stock,
-                    $obj->category,
-                    $obj->image
-                ]);
-            }
-        }
-
-    } catch (PDOException $e) {
-
-        die("saveInventory ERROR: " . $e->getMessage());
+    $dir = dirname(INVENTORY_FILE);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $list = array_values($inventory);
+    $result = file_put_contents(
+        INVENTORY_FILE,
+        json_encode($list, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+    );
+    if ($result === false) {
+        error_log('[ZAFIRAH] saveInventory() FAILED — check write permissions on ' . INVENTORY_FILE);
+    }
+    // Keep session in sync
+    $_SESSION['inventory'] = [];
+    foreach ($list as $item) {
+        $obj = is_array($item) ? (object)$item : $item;
+        $_SESSION['inventory'][(int)$obj->id] = $obj;
     }
 }
 
-// Bootstrap session arrays only once
-if (!isset($_SESSION['users']))   $_SESSION['users']   = [];
+// ── Users (session only) ──────────────────────────────────────
+function loadUsers(): array {
+    return $_SESSION['users'] ?? [];
+}
+
+function saveUsers(array $users): void {
+    $_SESSION['users'] = $users;
+}
+
+// ── Carts (session only) ──────────────────────────────────────
+function loadCarts(): array {
+    return $_SESSION['cart'] ?? [];
+}
+
+function saveCarts(array $carts): void {
+    $_SESSION['cart'] = $carts;
+}
+
+// ── Orders (session only) ─────────────────────────────────────
+function loadOrders(): array {
+    return $_SESSION['orders'] ?? [];
+}
+
+function saveOrders(array $orders): void {
+    $_SESSION['orders'] = $orders;
+}
+
+// ── Bootstrap session arrays ──────────────────────────────────
 if (!isset($_SESSION['cart']))    $_SESSION['cart']    = [];
 if (!isset($_SESSION['orders']))  $_SESSION['orders']  = [];
+if (!isset($_SESSION['users']))   $_SESSION['users']   = [];
 
-// Always derive last_id from the JSON file — survives logout/login.
-// Never rely solely on session for the max ID counter.
+// ── Always reload inventory FROM FILE so products persist across
+//    session resets. Only the admin (via admin_action.php) can
+//    add, edit, restock, or delete products.
 $_zExisting = loadInventory();
 $_zMaxId    = 0;
 foreach ($_zExisting as $_zItem) {
@@ -117,22 +80,47 @@ foreach ($_zExisting as $_zItem) {
         $_zMaxId = (int)$_zItem->id;
     }
 }
-// Only move the counter forward, never backwards
 if (!isset($_SESSION['last_id']) || $_zMaxId > (int)$_SESSION['last_id']) {
     $_SESSION['last_id'] = $_zMaxId;
 }
-
-// Always reload inventory FROM FILE so every page request reflects
-// the current saved state — changes by admin are instantly visible
-// to all users, and nothing is lost after logout.
 $_SESSION['inventory'] = [];
 foreach ($_zExisting as $_zItem) {
     $_SESSION['inventory'][(int)$_zItem->id] = $_zItem;
 }
 unset($_zExisting, $_zMaxId, $_zItem);
 
-define('STORE_NAME', 'ZAFIRAH');
-define('TAX_RATE',   0.12);
+// ── Cookie-expiry auto-logout ─────────────────────────────────
+$_zCurrentScript = basename($_SERVER['PHP_SELF'] ?? '');
+if (
+    !in_array($_zCurrentScript, ['logsign.php', 'logout.php'], true) &&
+    !empty($_SESSION['logged_in_user'])
+) {
+    if (empty($_COOKIE['zafirah_user'])) {
+        $keysToRemove = ['logged_in_user', 'role', 'login_time', 'session_start'];
+        foreach ($keysToRemove as $_k) unset($_SESSION[$_k]);
+        header('Location: logsign.php?expired=1');
+        exit;
+    }
+    if ($_COOKIE['zafirah_user'] !== $_SESSION['logged_in_user']) {
+        $keysToRemove = ['logged_in_user', 'role', 'login_time', 'session_start'];
+        foreach ($keysToRemove as $_k) unset($_SESSION[$_k]);
+        header('Location: logsign.php?expired=1');
+        exit;
+    }
+    // Renew cookie expiry on every page request — resets the 12-hour inactivity timer
+    $exp       = time() + 43200; // 12 hours
+    $email     = $_SESSION['logged_in_user'];
+    $role      = $_SESSION['role'] ?? ($_COOKIE['zafirah_role'] ?? '');
+    $name      = $_COOKIE['zafirah_name'] ?? '';
+    $loginTime = $_COOKIE['zafirah_login'] ?? date('h:i A');
+    setcookie('zafirah_user',  $email,     $exp, '/', '', false, true);
+    setcookie('zafirah_role',  $role,      $exp, '/', '', false, true);
+    setcookie('zafirah_name',  $name,      $exp, '/', '', false, true);
+    setcookie('zafirah_login', $loginTime, $exp, '/', '', false, true);
+}
+unset($_zCurrentScript);
+
+define('TAX_RATE', 0.12);
 
 // ---- Helpers ----
 function sanitize(string $v): string { return trim(htmlspecialchars($v)); }
@@ -191,13 +179,13 @@ class Product {
         $this->image       = $image;
     }
 
-     public function __get(string $prop): mixed {
+    public function __get(string $prop): mixed {
         if ($prop === 'price') return $this->price;
         if ($prop === 'stock') return $this->stock;
         return null;
     }
 
-      public function __set(string $prop, mixed $value): void {
+    public function __set(string $prop, mixed $value): void {
         if ($prop === 'price') {
             $clean = (float) str_replace([',', '₱', ' '], '', (string)$value);
             $this->price = max(0, $clean);
@@ -207,12 +195,12 @@ class Product {
         }
     }
 
-  public function __toString(): string {
+    public function __toString(): string {
         return "[Product #{$this->id}] {$this->name} — ₱" . number_format($this->price, 2)
              . " | Stock: {$this->stock} | Category: {$this->category}";
     }
 
-     public function customized_toString(): string {
+    public function customized_toString(): string {
         $stockLabel = getStockLabel($this->stock);
         return "ZAFIRAH Product Card\n"
              . "-------------------\n"
@@ -233,7 +221,7 @@ class Product {
     public function getFormattedPrice(): string { return formatPrice($this->price); }
     public function isAvailable(): bool         { return $this->stock > 0; }
 
-     public function toStdClass(): object {
+    public function toStdClass(): object {
         return (object)[
             'id'          => $this->id,
             'name'        => $this->name,
@@ -247,7 +235,7 @@ class Product {
         ];
     }
 
-     public static function fromStdClass(object $obj): self {
+    public static function fromStdClass(object $obj): self {
         return new self(
             (int)($obj->id ?? 0),
             (string)($obj->name ?? ''),

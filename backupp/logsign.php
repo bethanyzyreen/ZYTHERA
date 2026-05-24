@@ -313,7 +313,7 @@ document.addEventListener('DOMContentLoaded',()=>showToast(<?= json_encode($mess
   </form>
 
 <div class="footer-brand">
-  <img src="/php_work/e-commerce/pci/Group_15.svg" class="footer-logo">
+  <img src="pci/Group_15.svg" class="footer-logo">
   <span class="brand-name">ZAFIRAH</span>
 </div>
 

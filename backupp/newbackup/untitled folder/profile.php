@@ -20,8 +20,7 @@ $user     = &$_SESSION['users'][$userEmail];
 $userRole = $_SESSION['role'] ?? 'user';
 
 if (!isset($_SESSION['profile_pic'][$userEmail])) {
-    $uPic = is_array($user) ? ($user['profile_pic'] ?? null) : ($user->profile_pic ?? null);
-    $_SESSION['profile_pic'][$userEmail] = $uPic;
+    $_SESSION['profile_pic'][$userEmail] = $user['profile_pic'] ?? null;
 }
 
 if ($userRole !== 'admin') {
@@ -32,16 +31,12 @@ if ($userRole !== 'admin') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── Update profile ──────────────────────────────────────────
-if (isset($_POST['update_profile'])) {
-    $newName = trim($_POST['name'] ?? '');
-    $newPass = trim($_POST['password'] ?? '');
-    if (is_array($user)) {
+    if (isset($_POST['update_profile'])) {
+        $newName = trim($_POST['name'] ?? '');
+        $newPass = trim($_POST['password'] ?? '');
         if ($newName) $user['name'] = htmlspecialchars($newName);
-        if ($newPass && strlen($newPass) >= 6) $user['password'] = password_hash($newPass, PASSWORD_DEFAULT);
-    } else {
-        if ($newName) $user->name = htmlspecialchars($newName);
-        if ($newPass && strlen($newPass) >= 6) $user->password = password_hash($newPass, PASSWORD_DEFAULT);
-    }
+        if ($newPass && strlen($newPass) >= 6)
+            $user['password'] = password_hash($newPass, PASSWORD_DEFAULT);
         saveUsers($_SESSION['users']);
         header('Location: profile.php?updated=1');
         exit;

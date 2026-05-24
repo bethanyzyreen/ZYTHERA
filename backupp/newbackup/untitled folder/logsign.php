@@ -6,247 +6,90 @@ $msgType = '';
 
 // ── Cookie-based auto-restore ─────────────────────────────────
 if (empty($_SESSION['logged_in_user']) && !empty($_COOKIE['zafirah_user'])) {
-
     $cEmail = $_COOKIE['zafirah_user'];
     $cRole  = $_COOKIE['zafirah_role'] ?? '';
-
-    $db = getDBConnection();
-
-    $stmt = $db->prepare("
-        SELECT * FROM users
-        WHERE email = ?
-        LIMIT 1
-    ");
-
-    $stmt->execute([$cEmail]);
-
-    $checkUser = $stmt->fetch(PDO::FETCH_OBJ);
-
-    if ($checkUser && $checkUser->role === $cRole) {
-
+    if (isset($_SESSION['users'][$cEmail]) && $_SESSION['users'][$cEmail]['role'] === $cRole) {
         $_SESSION['logged_in_user'] = $cEmail;
         $_SESSION['role']           = $cRole;
         $_SESSION['login_time']     = $_COOKIE['zafirah_login'] ?? date('h:i A');
-
-        if (!isset($_SESSION['cart'][$cEmail])) {
-            $_SESSION['cart'][$cEmail] = [];
-        }
-
-        if (!isset($_SESSION['orders'][$cEmail])) {
-            $_SESSION['orders'][$cEmail] = [];
-        }
-
-        if (!isset($_SESSION['profile_pic'][$cEmail])) {
-            $_SESSION['profile_pic'][$cEmail] = null;
-        }
+        if (!isset($_SESSION['cart'][$cEmail]))   $_SESSION['cart'][$cEmail]   = [];
+        if (!isset($_SESSION['orders'][$cEmail])) $_SESSION['orders'][$cEmail] = [];
+        if (!isset($_SESSION['profile_pic'][$cEmail])) $_SESSION['profile_pic'][$cEmail] = null;
     }
 }
 
-// ── Session expired message ───────────────────────────────────
+// ── Show session-expired notice ───────────────────────────────
 if (isset($_GET['expired'])) {
-
     $message = "We couldn't find your account session — please log in again.";
-    $msgType = 'error';
+    $msgType  = 'error';
 }
 
-// ── FORM SUBMIT ───────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
-    $email    = trim($_POST['email'] ?? '');
+    $email    = trim($_POST['email']    ?? '');
     $password = trim($_POST['password'] ?? '');
 
-    $adminEmails = [
-        'zafirah@gmail.com',
-        'admin@gmail.com'
-    ];
+    $adminEmails = ['zafirah@gmail.com', 'admin@gmail.com'];
 
-    // ── SIGNUP ────────────────────────────────────────────────
+    // ── SIGN UP ──────────────────────────────────────────────
     if (isset($_POST['signup'])) {
-
         $name = trim($_POST['name'] ?? '');
+        $role = in_array($email, $adminEmails, true) ? 'admin' : 'user';
 
-        $role = in_array($email, $adminEmails, true)
-            ? 'admin'
-            : 'user';
-
-        if (!$name || !$email || !$password) {
-
+        if (!$email || !$password || !$name) {
             $message = 'Please complete all fields.';
-            $msgType = 'error';
-
+            $msgType  = 'error';
+        } elseif (isset($_SESSION['users'][$email])) {
+            $message = 'Email already registered!';
+            $msgType  = 'error';
         } else {
+            $_SESSION['users'][$email] = [
+                'name'     => $name,
+                'password' => password_hash($password, PASSWORD_DEFAULT),
+                'role'     => $role,
+            ];
+            $_SESSION['cart'][$email]        = [];
+            $_SESSION['orders'][$email]      = [];
+            $_SESSION['profile_pic'][$email] = null;
 
-            $db = getDBConnection();
-
-            $check = $db->prepare("
-                SELECT email
-                FROM users
-                WHERE email = ?
-            ");
-
-            $check->execute([$email]);
-
-            if ($check->fetch()) {
-
-                $message = 'Email already registered!';
-                $msgType = 'error';
-
-            } else {
-
-                $hashedPassword = password_hash(
-                    $password,
-                    PASSWORD_DEFAULT
-                );
-
-                $stmt = $db->prepare("
-                    INSERT INTO users
-                    (
-                        email,
-                        name,
-                        password,
-                        role
-                    )
-                    VALUES (?, ?, ?, ?)
-                ");
-
-                $stmt->execute([
-                    $email,
-                    $name,
-                    $hashedPassword,
-                    $role
-                ]);
-
-                $message = 'Account created successfully!';
-                $msgType = 'success';
-            }
+            $message = 'Account created! You can now log in.';
+            $msgType  = 'success';
         }
     }
 
     // ── LOGIN ────────────────────────────────────────────────
     if (isset($_POST['login'])) {
+        $userExists = isset($_SESSION['users'][$email]);
+        $passOk     = $userExists && password_verify($password, $_SESSION['users'][$email]['password']);
 
-        try {
+        if ($userExists && $passOk) {
+            $_SESSION['logged_in_user'] = $email;
+            $_SESSION['role']           = $_SESSION['users'][$email]['role'];
+            $_SESSION['login_time']     = date('h:i A');
+            $_SESSION['session_start']  = time();
 
-            $db = getDBConnection();
+            $exp = time() + 43200; // 12 hours — resets on every page visit while active
+            setcookie('zafirah_user',  $email,                             $exp, '/', '', false, true);
+            setcookie('zafirah_role',  $_SESSION['users'][$email]['role'], $exp, '/', '', false, true);
+            setcookie('zafirah_name',  $_SESSION['users'][$email]['name'], $exp, '/', '', false, true);
+            setcookie('zafirah_login', date('h:i A'),                      $exp, '/', '', false, true);
 
-            $stmt = $db->prepare("
-                SELECT *
-                FROM users
-                WHERE email = ?
-                LIMIT 1
-            ");
+            if (!isset($_SESSION['cart'][$email]))        $_SESSION['cart'][$email]        = [];
+            if (!isset($_SESSION['orders'][$email]))      $_SESSION['orders'][$email]      = [];
+            if (!isset($_SESSION['profile_pic'][$email])) $_SESSION['profile_pic'][$email] = null;
 
-            $stmt->execute([$email]);
+            header('Location: ' . (in_array($email, $adminEmails, true) ? 'admin.php' : 'website.php'));
+            exit;
 
-            $user = $stmt->fetch(PDO::FETCH_OBJ);
-
-            if (!$user) {
-
-                $message = 'Email not found.';
-                $msgType = 'error';
-
-            } else {
-
-                if (password_verify($password, $user->password)) {
-
-                    $_SESSION['logged_in_user'] = $user->email;
-                    $_SESSION['role']           = $user->role;
-                    $_SESSION['login_time']     = date('h:i A');
-                    $_SESSION['session_start']  = time();
-
-                    $exp = time() + 43200;
-
-                    setcookie(
-                        'zafirah_user',
-                        $user->email,
-                        $exp,
-                        '/'
-                    );
-
-                    setcookie(
-                        'zafirah_role',
-                        $user->role,
-                        $exp,
-                        '/'
-                    );
-
-                    setcookie(
-                        'zafirah_name',
-                        $user->name,
-                        $exp,
-                        '/'
-                    );
-
-                    setcookie(
-                        'zafirah_login',
-                        date('h:i A'),
-                        $exp,
-                        '/'
-                    );
-
-                    if (!isset($_SESSION['cart'][$user->email])) {
-                        $_SESSION['cart'][$user->email] = [];
-                    }
-
-                    if (!isset($_SESSION['orders'][$user->email])) {
-                        $_SESSION['orders'][$user->email] = [];
-                    }
-
-                    if (!isset($_SESSION['profile_pic'][$user->email])) {
-                        $_SESSION['profile_pic'][$user->email] = null;
-                    }
-
-                    header(
-                        'Location: ' .
-                        (
-                            in_array(
-                                $user->email,
-                                $adminEmails,
-                                true
-                            )
-                            ? 'admin.php'
-                            : 'website.php'
-                        )
-                    );
-
-                    exit;
-
-                } else {
-
-                    $message = 'Invalid password.';
-                    $msgType = 'error';
-                }
-            }
-
-        } catch (PDOException $e) {
-
-            $message = 'Database error: ' . $e->getMessage();
-            $msgType = 'error';
+        } else {
+            $message = 'Invalid email or password.';
+            $msgType  = 'error';
         }
     }
 }
 
-// ── AUTO REDIRECT IF LOGGED IN ───────────────────────────────
 if (!empty($_SESSION['logged_in_user'])) {
-
-    $adminEmails2 = [
-        'zafirah@gmail.com',
-        'admin@gmail.com'
-    ];
-
-    header(
-        'Location: ' .
-        (
-            in_array(
-                $_SESSION['logged_in_user'],
-                $adminEmails2,
-                true
-            )
-            ? 'admin.php'
-            : 'website.php'
-        )
-    );
-
+    $adminEmails2 = ['zafirah@gmail.com', 'admin@gmail.com'];
+    header('Location: ' . (in_array($_SESSION['logged_in_user'], $adminEmails2, true) ? 'admin.php' : 'website.php'));
     exit;
 }
 ?>
@@ -517,7 +360,7 @@ document.addEventListener('DOMContentLoaded',()=>showToast(<?= json_encode($mess
   </form>
 
 <div class="footer-brand">
-  <img src="pci/Group_15.svg" class="footer-logo">
+  <img src="/php_work/e-commerce/pci/Group_15.svg" class="footer-logo">
   <span class="brand-name">ZAFIRAH</span>
 </div>
 

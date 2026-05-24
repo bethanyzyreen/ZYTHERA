@@ -380,14 +380,7 @@ if (!in_array($loggedIn, ADMIN_EMAILS, true)) {
     <div class="sidebar-footer">
         <?php
         $adminEmail = $_SESSION['logged_in_user'] ?? 'Admin';
-        $db = getDBConnection();
-
-$stmt = $db->prepare("SELECT name FROM users WHERE email = ?");
-$stmt->execute([$adminEmail]);
-
-$adminData = $stmt->fetch();
-
-$adminName = $adminData ? $adminData->name : 'Admin';
+        $adminName  = isset($_SESSION['users'][$adminEmail]) ? $_SESSION['users'][$adminEmail]['name'] : 'Admin';
         ?>
         <div style="color:rgba(255,255,255,.7);font-size:.8rem;margin-bottom:10px;">
             <i class="fas fa-user-shield me-2"></i><?= htmlspecialchars($adminName) ?>
