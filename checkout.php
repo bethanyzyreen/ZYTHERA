@@ -1,31 +1,56 @@
 <?php
 require 'config.php';
 
+// ── Auth guard ────────────────────────────────────────────────
 if (empty($_SESSION['logged_in_user'])) {
     header('Location: logsign.php');
     exit;
 }
 
 $userEmail = $_SESSION['logged_in_user'];
-if (!isset($_SESSION['users'][$userEmail])) {
-    
-    
-    $keysToRemove = ['logged_in_user', 'role', 'login_time', 'session_start'];
-    foreach ($keysToRemove as $_k) unset($_SESSION[$_k]);
+$userRole  = $_SESSION['role'] ?? 'user';
+
+// Admins cannot checkout
+if ($userRole === 'admin') {
+    header('Location: admin.php');
+    exit;
+}
+
+// ── Load user from DB ─────────────────────────────────────────
+$db    = getDBConnection();
+$uStmt = $db->prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
+$uStmt->execute([$userEmail]);
+$dbUser = $uStmt->fetch();
+
+if (!$dbUser) {
+    foreach (['logged_in_user','role','login_time','session_start'] as $_k) unset($_SESSION[$_k]);
     header('Location: logsign.php');
     exit;
 }
 
-$user   = &$_SESSION['users'][$userEmail];
-$cart   = $_SESSION['cart'][$userEmail] ?? [];
+$userName = $dbUser->name ?? '';
+
+// ── Load cart from DB ─────────────────────────────────────────
+$cart = loadCartForUser($userEmail);
+$_SESSION['cart'][$userEmail] = $cart;
 
 if (empty($cart)) {
     header('Location: website.php');
     exit;
 }
 
+// ── Compute totals ────────────────────────────────────────────
+$subtotal = 0;
+foreach ($cart as $ci) {
+    $subtotal += (float)($ci['price'] ?? 0) * (int)($ci['qty'] ?? 1);
+}
+$shipping = $subtotal > 0 ? 150 : 0;
+$total    = $subtotal + $shipping;
+
 // ── Handle checkout form submission ───────────────────────────
 $errors      = [];
+$orderPlaced = false;
+$placedOrderInfo = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
     $fullName    = trim($_POST['full_name']    ?? '');
@@ -39,112 +64,117 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
 
     if (!$fullName)  $errors[] = 'Full name is required.';
     if (!$phone)     $errors[] = 'Phone number is required.';
-    if (!$address)   $errors[] = 'Delivery address is required.';
+    if (!$address)   $errors[] = 'Complete address is required.';
     if (!$city)      $errors[] = 'City is required.';
     if (!$province)  $errors[] = 'Province is required.';
-    if (!$zip)       $errors[] = 'ZIP code is required.';
+    if (!$zip)       $errors[] = 'ZIP Code is required.';
     if (!$payMethod) $errors[] = 'Please select a payment method.';
 
     if (empty($errors)) {
-        // Compute totals
-        $subtotalAmt = 0;
-        foreach ($cart as $ci) {
-            $subtotalAmt += (float)($ci['price'] ?? 0) * (int)($ci['qty'] ?? 1);
-        }
-        $shippingFee = $subtotalAmt > 0 ? 150 : 0;
-        $totalAmt    = $subtotalAmt + $shippingFee;
+        try {
+            // Generate unique order ID
+            $orderId = 'ORD-' . strtoupper(substr(md5(uniqid($userEmail, true)), 0, 8));
 
-        // Deduct stock from inventory
-        $invList = loadInventory();
-        $invMap  = [];
-        foreach ($invList as $inv) {
-            $obj = is_object($inv) ? $inv : (object)$inv;
-            $invMap[(int)$obj->id] = $obj;
-        }
-        foreach ($cart as $ci) {
-            $pid = (int)($ci['id'] ?? 0);
-            $qty = (int)($ci['qty'] ?? 1);
-            if (isset($invMap[$pid])) {
-                $invMap[$pid]->stock = max(0, (int)$invMap[$pid]->stock - $qty);
+            $orderData = [
+                'order_id'      => $orderId,
+                'subtotal'      => $subtotal,
+                'shipping'      => $shipping,
+                'total'         => $total,
+                'status'        => 'Pending',
+                'pay_method'    => $payMethod,
+                'shipping_info' => [
+                    'full_name' => $fullName,
+                    'phone'     => $phone,
+                    'address'   => $address,
+                    'city'      => $city,
+                    'province'  => $province,
+                    'zip'       => $zip,
+                    'notes'     => $notes,
+                ],
+                'items'         => $cart,
+            ];
+
+            $db->beginTransaction();
+
+            // 1. Insert order with correct schema columns
+            $oStmt = $db->prepare("
+                INSERT INTO orders
+                (order_id, email, subtotal, shipping, total, date, status, pay_method,
+                 full_name, phone, address, city, province, zip, notes)
+                VALUES (?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $oStmt->execute([
+                $orderId, $userEmail, $subtotal, $shipping, $total,
+                'Pending', $payMethod,
+                $fullName, $phone, $address, $city, $province, $zip, $notes
+            ]);
+            $dbOrdNo = $db->lastInsertId();
+
+            // 2. Insert order items with correct schema columns
+            $oiStmt = $db->prepare("
+                INSERT INTO order_items (ord_no, inv_id, product_name, price, qty)
+                VALUES (?, ?, ?, ?, ?)
+            ");
+            foreach ($cart as $ci) {
+                $oiStmt->execute([
+                    $dbOrdNo,
+                    (int)($ci['inv_id'] ?? 0),
+                    trim($ci['name']   ?? ''),
+                    (float)($ci['price'] ?? 0),
+                    (int)($ci['qty']   ?? 1),
+                ]);
             }
+
+            // 3. Deduct inventory safely
+            $deductStmt = $db->prepare("
+                UPDATE inventory SET stock = stock - ?
+                WHERE inv_id = ? AND stock >= ?
+            ");
+            foreach ($cart as $ci) {
+                $qty = (int)($ci['qty'] ?? 1);
+                $pid = (int)($ci['inv_id'] ?? 0);
+                $deductStmt->execute([$qty, $pid, $qty]);
+                if ($deductStmt->rowCount() === 0) {
+                    throw new Exception('Insufficient stock for product ID ' . $pid);
+                }
+            }
+
+            // 4. Clear cart
+            $db->prepare("DELETE FROM carts WHERE email = ?")->execute([$userEmail]);
+
+            $db->commit();
+
+            // Sync session
+            $_SESSION['cart'][$userEmail] = [];
+
+            // Store order flash for profile page modal
+            $_SESSION['order_flash'] = [
+                'order_id'    => $orderId,
+                'pay_method'  => $payMethod,
+                'subtotal'    => $subtotal,
+                'shipping'    => $shipping,
+                'total'       => $total,
+                'date'        => date('Y-m-d H:i:s'),
+                'items'       => $cart,
+                'shipping_info' => $orderData['shipping_info'],
+            ];
+
+            header('Location: orders.php?order_placed=1&order_id=' . urlencode($orderId));
+            exit;
+
+        } catch (Exception $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            $errors[] = "Checkout processing failed: " . $e->getMessage();
         }
-        saveInventory($invMap);
-
-        // Save order
-        if (!isset($_SESSION['orders'][$userEmail])) $_SESSION['orders'][$userEmail] = [];
-        $newOrder = [
-            'order_id'        => 'ZPH-' . strtoupper(substr(md5(uniqid()), 0, 6)),
-            'items'           => $cart,
-            'subtotal'        => $subtotalAmt,
-            'shipping'        => $shippingFee,
-            'total'           => $totalAmt,
-            'date'            => date('Y-m-d H:i:s'),
-            'status'          => 'Pending',
-            'shipping_address'=> htmlspecialchars($address . ', ' . $city . ', ' . $province . ' ' . $zip),
-            'pay_method'      => htmlspecialchars($payMethod),
-            'shipping_info'   => [
-                'full_name' => htmlspecialchars($fullName),
-                'phone'     => htmlspecialchars($phone),
-                'address'   => htmlspecialchars($address),
-                'city'      => htmlspecialchars($city),
-                'province'  => htmlspecialchars($province),
-                'zip'       => htmlspecialchars($zip),
-                'notes'     => htmlspecialchars($notes),
-            ],
-        ];
-
-        // Load current orders from file, add new order, save back to file
-        $allOrders = loadOrders();
-        if (!isset($allOrders[$userEmail])) $allOrders[$userEmail] = [];
-        $allOrders[$userEmail][] = $newOrder;
-        saveOrders($allOrders);
-
-        // Clear only the items that were just ordered — not the entire cart
-        $orderedIds = array_column($newOrder['items'], 'id');
-        $orderedIds = array_map('intval', $orderedIds);
-        $_SESSION['cart'][$userEmail] = array_values(
-            array_filter($_SESSION['cart'][$userEmail], function($ci) use ($orderedIds) {
-                return !in_array((int)($ci['id'] ?? 0), $orderedIds);
-            })
-        );
-        $allCarts = loadCarts();
-        $allCarts[$userEmail] = $_SESSION['cart'][$userEmail];
-        saveCarts($allCarts);
-
-        // Store flash data in session so profile.php can show the confirmation
-        $_SESSION['order_flash'] = [
-            'order_id'  => $newOrder['order_id'],
-            'total'     => $newOrder['total'],
-            'items'     => $newOrder['items'],
-            'subtotal'  => $newOrder['subtotal'],
-            'shipping'  => $newOrder['shipping'],
-            'pay_method'=> $newOrder['pay_method'],
-            'date'      => $newOrder['date'],
-            'shipping_info' => $newOrder['shipping_info'],
-        ];
-
-        // Redirect straight to profile order history
-        header('Location: profile.php?order_placed=1');
-        exit;
-    } // end if (empty($errors))
-} // end if POST
-
-// ── Compute subtotals ─────────────────────────────────────────
-$subtotal = 0;
-foreach ($cart as $ci) {
-    $subtotal += (float)($ci['price'] ?? 0) * (int)($ci['qty'] ?? 1);
+    }
 }
-$shipping = $subtotal > 0 ? 150 : 0;
-$total    = $subtotal + $shipping;
-
-$userName = $user['name'] ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ZAFIRAH | Checkout</title>
+<title>ZYTHERA | Checkout</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -153,17 +183,14 @@ $userName = $user['name'] ?? '';
 *{font-family:'DM Sans',sans-serif;box-sizing:border-box;}
 body{background:var(--cream);min-height:100vh;padding-top:70px;}
 
-/* Navbar */
 .navbar{background:#fff!important;box-shadow:0 1px 12px rgba(0,0,0,.07);}
 .navbar-brand{font-family:'Playfair Display',serif;color:var(--green)!important;font-size:1.55rem;letter-spacing:2px;}
 
-/* Section label */
 .step-label{
   font-size:.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;
   color:var(--green);margin-bottom:6px;
 }
 
-/* Cards */
 .checkout-card{
   background:#fff;border-radius:20px;
   box-shadow:0 4px 20px rgba(0,0,0,.07);
@@ -174,7 +201,6 @@ body{background:var(--cream);min-height:100vh;padding-top:70px;}
   color:var(--deep);font-size:1.15rem;margin-bottom:20px;
 }
 
-/* Floating label inputs */
 .field{position:relative;margin-bottom:18px;}
 .field input,.field select,.field textarea{
   width:100%;padding:15px 14px 7px;
@@ -199,7 +225,6 @@ body{background:var(--cream);min-height:100vh;padding-top:70px;}
 }
 .field select~label{top:4px;font-size:.67rem;color:var(--green);font-weight:600;}
 
-/* Payment options */
 .pay-option{
   display:flex;align-items:center;gap:12px;
   padding:14px 16px;border:2px solid var(--sage);
@@ -211,7 +236,6 @@ body{background:var(--cream);min-height:100vh;padding-top:70px;}
 .pay-icon{width:36px;height:36px;border-radius:10px;background:var(--sage);
   display:flex;align-items:center;justify-content:center;color:var(--green);font-size:1rem;}
 
-/* Order summary */
 .order-item{
   display:flex;align-items:center;gap:12px;
   padding:10px 0;border-bottom:1px solid #f0f0eb;
@@ -231,7 +255,6 @@ body{background:var(--cream);min-height:100vh;padding-top:70px;}
   padding-top:12px;margin-top:6px;
 }
 
-/* Place order button */
 .btn-place{
   width:100%;padding:15px;border:none;
   background:var(--green);color:#fff;
@@ -241,28 +264,10 @@ body{background:var(--cream);min-height:100vh;padding-top:70px;}
 .btn-place:hover{background:var(--deep);}
 .btn-place:disabled{opacity:.6;cursor:not-allowed;}
 
-/* Error alert */
 .alert-errors{
   background:#fee2e2;border:1px solid #fca5a5;
   border-radius:14px;padding:14px 18px;margin-bottom:20px;
   color:#b91c1c;font-size:.85rem;
-}
-
-/* Success overlay */
-.success-wrap{
-  text-align:center;padding:60px 30px;
-}
-.success-icon{
-  width:80px;height:80px;border-radius:50%;
-  background:linear-gradient(135deg,var(--green),#4a7c4a);
-  display:flex;align-items:center;justify-content:center;
-  margin:0 auto 24px;font-size:2rem;color:#fff;
-}
-.order-id-badge{
-  display:inline-block;background:var(--sage);
-  color:var(--green);font-weight:700;font-size:.9rem;
-  padding:8px 20px;border-radius:50px;letter-spacing:1px;
-  margin-bottom:20px;
 }
 
 footer{
@@ -274,6 +279,12 @@ footer .footer-brand{
   font-family:'Playfair Display',serif;
   color:var(--green);font-size:1rem;letter-spacing:3px;
 }
+
+/* Order summary scroll area — thin green scrollbar */
+.checkout-card > div[style*="overflow-y:auto"]::-webkit-scrollbar{width:5px;}
+.checkout-card > div[style*="overflow-y:auto"]::-webkit-scrollbar-track{background:var(--sage);border-radius:4px;}
+.checkout-card > div[style*="overflow-y:auto"]::-webkit-scrollbar-thumb{background:var(--green);border-radius:4px;}
+.checkout-card > div[style*="overflow-y:auto"]::-webkit-scrollbar-thumb:hover{background:var(--deep);}
 </style>
 </head>
 <body>
@@ -281,7 +292,7 @@ footer .footer-brand{
 <!-- NAVBAR -->
 <nav class="navbar navbar-expand-lg fixed-top">
   <div class="container">
-    <a class="navbar-brand fw-bold" href="website.php">ZAFIRAH</a>
+    <a class="navbar-brand fw-bold" href="website.php">ZYTHERA</a>
     <div class="ms-auto d-flex gap-2 align-items-center">
       <a href="website.php" class="btn btn-sm btn-outline-success rounded-pill px-3">
         <i class="fas fa-arrow-left me-1"></i> Keep Shopping
@@ -294,14 +305,10 @@ footer .footer-brand{
 
 <div class="container py-4" style="max-width:980px;">
 
-  <!-- Page title -->
   <div class="mb-4">
-    <p class="step-label">ZAFIRAH FURNITURE</p>
+    <p class="step-label">ZYTHERA FURNITURE</p>
     <h2 style="font-family:'Playfair Display',serif;color:var(--deep);margin:0;">Checkout</h2>
   </div>
-
-
-  <!-- ── CHECKOUT FORM ── -->
 
   <?php if (!empty($errors)): ?>
     <div class="alert-errors">
@@ -315,16 +322,17 @@ footer .footer-brand{
   <form method="POST" id="checkoutForm">
   <div class="row g-4">
 
-    <!-- LEFT: Form -->
+    <!-- LEFT: Delivery + Payment -->
     <div class="col-lg-7">
 
       <!-- Delivery Details -->
       <div class="checkout-card">
-        <h5><i class="fas fa-map-marker-alt me-2" style="color:var(--terra);"></i>Delivery Details</h5>
+        <h5><i class="fas fa-map-marker-alt me-2" style="color:var(--green);"></i>Delivery Details</h5>
 
         <div class="field">
           <input type="text" name="full_name"
-            value="<?= htmlspecialchars($userName) ?>" placeholder=" " required>
+            value="<?= htmlspecialchars($_POST['full_name'] ?? $userName) ?>"
+            placeholder=" " required>
           <label>Full Name *</label>
         </div>
 
@@ -381,7 +389,7 @@ footer .footer-brand{
 
       <!-- Payment Method -->
       <div class="checkout-card">
-        <h5><i class="fas fa-credit-card me-2" style="color:var(--terra);"></i>Payment Method</h5>
+        <h5><i class="fas fa-credit-card me-2" style="color:var(--green);"></i>Payment Method</h5>
 
         <label class="pay-option" id="pay-cod">
           <input type="radio" name="pay_method" value="Cash on Delivery (COD)"
@@ -428,11 +436,10 @@ footer .footer-brand{
 
     <!-- RIGHT: Order Summary -->
     <div class="col-lg-5">
-      <div class="checkout-card" style="position:sticky;top:82px;">
-        <h5><i class="fas fa-shopping-bag me-2" style="color:var(--terra);"></i>Order Summary</h5>
+      <div class="checkout-card" style="position:sticky;top:82px;display:flex;flex-direction:column;max-height:calc(100vh - 100px);overflow:hidden;">
+        <h5 style="flex-shrink:0;"><i class="fas fa-shopping-bag me-2" style="color:var(--green);"></i>Order Summary</h5>
 
-        <!-- Cart Items -->
-        <div style="max-height:320px;overflow-y:auto;margin-bottom:16px;">
+        <div style="flex:1;min-height:0;overflow-y:auto;margin-bottom:16px;padding-right:4px;">
           <?php foreach ($cart as $ci):
             $ciPrice = (float)($ci['price'] ?? 0);
             $ciQty   = (int)($ci['qty']   ?? 1);
@@ -442,7 +449,8 @@ footer .footer-brand{
               <img src="<?= htmlspecialchars($ci['image'] ?? '') ?>" alt=""
                 onerror="this.src='https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=60&h=60&fit=crop'">
               <div style="flex:1;min-width:0;">
-                <div style="font-weight:600;font-size:.85rem;color:var(--deep);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                <div style="font-weight:600;font-size:.85rem;color:var(--deep);
+                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                   <?= htmlspecialchars($ci['name'] ?? '') ?>
                 </div>
                 <div style="font-size:.76rem;color:#999;">
@@ -456,7 +464,7 @@ footer .footer-brand{
           <?php endforeach; ?>
         </div>
 
-        <!-- Totals -->
+        <div style="flex-shrink:0;">
         <div class="order-total-row">
           <span>Subtotal</span>
           <span>₱<?= number_format($subtotal) ?></span>
@@ -470,7 +478,6 @@ footer .footer-brand{
           <span>₱<?= number_format($total) ?></span>
         </div>
 
-        <!-- Place Order -->
         <button type="submit" name="place_order" class="btn-place mt-4">
           <i class="fas fa-lock me-2"></i>Place Order
         </button>
@@ -478,33 +485,32 @@ footer .footer-brand{
         <p style="text-align:center;font-size:.72rem;color:#bbb;margin-top:12px;">
           <i class="fas fa-shield-alt me-1"></i>Your information is secure and encrypted
         </p>
+        </div><!-- /flex-shrink:0 totals wrapper -->
       </div>
     </div>
 
   </div>
   </form>
 
-</div><!-- /container -->
+</div>
 
 <footer>
-  <img src="pci/Group_15.svg" style="width:28px;" alt="Zafirah logo">
-  <span class="footer-brand">ZAFIRAH</span>
+  <img src="pci/Group_15.png" style="width:28px;" alt="Zythera logo">
+  <span class="footer-brand">ZYTHERA</span>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // Highlight selected payment option
 document.querySelectorAll('.pay-option input[type=radio]').forEach(radio => {
-  // Init on load
   if (radio.checked) radio.closest('.pay-option').classList.add('selected');
-
   radio.addEventListener('change', () => {
     document.querySelectorAll('.pay-option').forEach(o => o.classList.remove('selected'));
     if (radio.checked) radio.closest('.pay-option').classList.add('selected');
   });
 });
 
-// Disable button on submit to prevent double-click
+// Prevent double-submit
 document.getElementById('checkoutForm')?.addEventListener('submit', function() {
   const btn = this.querySelector('.btn-place');
   if (btn) {

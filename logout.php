@@ -1,6 +1,6 @@
 <?php
 // ── logout.php ───────────────────────────────────────────────
-// Clears login session data AND deletes all zafirah cookies.
+// Clears login session data AND deletes all zythera cookies.
 // Cart is cleared from session on logout so it won't persist
 // to the next login.
 // ─────────────────────────────────────────────────────────────
@@ -18,8 +18,8 @@ foreach ($keysToRemove as $key) {
     unset($_SESSION[$key]);
 }
 
-// ── Delete all zafirah cookies by setting expiry in the past ──
-$cookiesToClear = ['zafirah_user', 'zafirah_role', 'zafirah_name', 'zafirah_login'];
+// ── Delete all zythera cookies by setting expiry in the past ──
+$cookiesToClear = ['zythera_user', 'zythera_role', 'zythera_name', 'zythera_login'];
 foreach ($cookiesToClear as $name) {
     setcookie($name, '', time() - 60, '/', '', false, true);
     unset($_COOKIE[$name]);

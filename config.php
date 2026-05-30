@@ -17,75 +17,51 @@ define('DB_NAME', 'system_db');
 
 // ── CONNECT DATABASE ──────────────────────────────────────────
 function getDBConnection() {
-
     static $pdo = null;
-
     if ($pdo === null) {
-
         try {
-
             $pdo = new PDO(
                 "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
                 DB_USER,
                 DB_PASS
             );
-
             $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_OBJ);
-
         } catch (PDOException $e) {
-
             die("DATABASE ERROR: " . $e->getMessage());
         }
     }
-
     return $pdo;
 }
 
 // ── LOAD INVENTORY ────────────────────────────────────────────
 function loadInventory(): array {
-
     try {
-
         $db = getDBConnection();
-
         $stmt = $db->query("
             SELECT * FROM inventory
-            ORDER BY id ASC
+            ORDER BY inv_id ASC
         ");
-
         return $stmt->fetchAll();
-
     } catch (PDOException $e) {
-
         die("loadInventory ERROR: " . $e->getMessage());
     }
 }
 
 // ── SAVE INVENTORY ────────────────────────────────────────────
 function saveInventory(array $inventory): void {
-
     try {
-
         $db = getDBConnection();
-
         foreach ($inventory as $item) {
-
             $obj = is_array($item) ? (object)$item : $item;
 
-            // CHECK IF PRODUCT EXISTS
             $check = $db->prepare("
-                SELECT id FROM inventory
-                WHERE id = ?
+                SELECT inv_id FROM inventory
+                WHERE inv_id = ?
             ");
+            $check->execute([(int)$obj->inv_id]);
 
-            $check->execute([
-                (int)$obj->id
-            ]);
-
-            // ── UPDATE PRODUCT ───────────────────────────
             if ($check->fetch()) {
-
                 $stmt = $db->prepare("
                     UPDATE inventory SET
                         name = ?,
@@ -96,9 +72,8 @@ function saveInventory(array $inventory): void {
                         stock = ?,
                         category = ?,
                         image = ?
-                    WHERE id = ?
+                    WHERE inv_id = ?
                 ");
-
                 $stmt->execute([
                     $obj->name,
                     $obj->size,
@@ -108,31 +83,16 @@ function saveInventory(array $inventory): void {
                     (int)$obj->stock,
                     $obj->category,
                     $obj->image,
-                    (int)$obj->id
+                    (int)$obj->inv_id
                 ]);
-
             } else {
-
-                // ── INSERT PRODUCT ───────────────────────
                 $stmt = $db->prepare("
                     INSERT INTO inventory
-                    (
-                        id,
-                        name,
-                        size,
-                        color,
-                        price,
-                        description,
-                        stock,
-                        category,
-                        image
-                    )
-                    VALUES
-                    (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (inv_id, name, size, color, price, description, stock, category, image)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
-
                 $stmt->execute([
-                    (int)$obj->id,
+                    (int)$obj->inv_id,
                     $obj->name,
                     $obj->size,
                     $obj->color,
@@ -144,305 +104,210 @@ function saveInventory(array $inventory): void {
                 ]);
             }
         }
-
     } catch (PDOException $e) {
-
         die("saveInventory ERROR: " . $e->getMessage());
     }
 }
 
 // ── LOAD USERS ────────────────────────────────────────────────
 function loadUsers(): array {
-
     try {
-
         $db = getDBConnection();
-
         $stmt = $db->query("
-            SELECT * FROM users
+            SELECT *
+            FROM users
             ORDER BY created_at DESC
         ");
-
         return $stmt->fetchAll();
-
     } catch (PDOException $e) {
-
         die("loadUsers ERROR: " . $e->getMessage());
     }
 }
 
 // ── LOAD CARTS ────────────────────────────────────────────────
 function loadCarts(): array {
-
     try {
-
         $db = getDBConnection();
-
         $stmt = $db->query("
-            SELECT * FROM carts
+            SELECT *
+            FROM carts
         ");
-
-        return $stmt->fetchAll();
-
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
-
         die("loadCarts ERROR: " . $e->getMessage());
     }
 }
 
-// ── LOAD CART FOR ONE USER (returns array of cart items) ──────
+// ── LOAD USER CART ────────────────────────────────────────────
 function loadCartForUser(string $email): array {
-
     try {
-
         $db = getDBConnection();
-
         $stmt = $db->prepare("
-            SELECT c.product_id AS id, c.qty,
-                   i.name, i.price, i.image, i.stock
+            SELECT
+                c.inv_id AS inv_id,
+                inv.name AS name,
+                inv.price AS price,
+                c.qty AS qty,
+                inv.image AS image
             FROM carts c
-            JOIN inventory i ON i.id = c.product_id
-            WHERE c.user_email = ?
+            LEFT JOIN inventory inv ON inv.inv_id = c.inv_id
+            WHERE c.email = ?
         ");
-
         $stmt->execute([$email]);
-
-        $rows = $stmt->fetchAll();
-
-        $cart = [];
-
-        foreach ($rows as $r) {
-            $cart[] = [
-                'id'    => (int)$r->id,
-                'name'  => $r->name,
-                'price' => (float)$r->price,
-                'qty'   => (int)$r->qty,
-                'image' => $r->image,
-            ];
-        }
-
-        return $cart;
-
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
-
-        return [];
+        die("loadCartForUser ERROR: " . $e->getMessage());
     }
 }
 
-// ── SAVE CART ITEM FOR USER (upsert) ─────────────────────────
-function saveCartItem(string $email, int $productId, int $qty): void {
+function loadCart(string $email): array {
+    return loadCartForUser($email);
+}
 
+function saveCartForUser(string $email, array $cart): void {
+    saveCart($email, $cart);
+}
+
+// ── SAVE USER CART ────────────────────────────────────────────
+function saveCart(string $email, array $cart): void {
     try {
-
         $db = getDBConnection();
+        $db->prepare("DELETE FROM carts WHERE email = ?")->execute([$email]);
 
-        if ($qty <= 0) {
-
-            $stmt = $db->prepare("
-                DELETE FROM carts
-                WHERE user_email = ? AND product_id = ?
-            ");
-
-            $stmt->execute([$email, $productId]);
-
-        } else {
-
-            $stmt = $db->prepare("
-                INSERT INTO carts (user_email, product_id, qty)
+        foreach ($cart as $item) {
+            $insert = $db->prepare("
+                INSERT INTO carts (email, inv_id, qty)
                 VALUES (?, ?, ?)
-                ON DUPLICATE KEY UPDATE qty = ?
+                ON DUPLICATE KEY UPDATE qty = VALUES(qty)
             ");
-
-            $stmt->execute([$email, $productId, $qty, $qty]);
+            $insert->execute([
+                $email,
+                (int)($item['inv_id'] ?? 0),
+                (int)($item['qty'] ?? 1),
+            ]);
         }
-
     } catch (PDOException $e) {
-
-        // silently fail — session is source of truth
+        die("saveCart ERROR: " . $e->getMessage());
     }
 }
 
-// ── REMOVE CART ITEM FOR USER ─────────────────────────────────
-function removeCartItem(string $email, int $productId): void {
-
-    try {
-
-        $db = getDBConnection();
-
-        $stmt = $db->prepare("
-            DELETE FROM carts
-            WHERE user_email = ? AND product_id = ?
-        ");
-
-        $stmt->execute([$email, $productId]);
-
-    } catch (PDOException $e) {
-        // silently fail
-    }
-}
-
-// ── CLEAR CART FOR USER ───────────────────────────────────────
+// ── CLEAR USER CART ───────────────────────────────────────────
 function clearCartForUser(string $email): void {
-
     try {
-
         $db = getDBConnection();
-
         $stmt = $db->prepare("
             DELETE FROM carts
-            WHERE user_email = ?
+            WHERE email = ?
         ");
-
         $stmt->execute([$email]);
-
     } catch (PDOException $e) {
-        // silently fail
+        die("clearCartForUser ERROR: " . $e->getMessage());
     }
 }
 
-// ── SAVE ORDER TO DATABASE ────────────────────────────────────
-function saveOrderToDB(string $email, array $order): bool {
-
+// ── SAVE ORDER ────────────────────────────────────────────────
+function saveOrderToDB(string $email, array $order): void {
     try {
-
         $db = getDBConnection();
-
-        $info = $order['shipping_info'] ?? [];
+        $db->beginTransaction();
 
         $stmt = $db->prepare("
             INSERT INTO orders
-            (
-                order_id, user_email, subtotal, shipping, total,
-                date, status, full_name, phone, address,
-                city, province, zip, pay_method, notes
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (order_id, email, subtotal, shipping, total, date, status, pay_method,
+             full_name, phone, address, city, province, zip, notes)
+            VALUES (?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-
         $stmt->execute([
             $order['order_id'],
             $email,
-            (float)$order['subtotal'],
-            (float)$order['shipping'],
-            (float)$order['total'],
-            $order['date'],
+            $order['subtotal'],
+            $order['shipping'],
+            $order['total'],
             $order['status'] ?? 'Pending',
-            $info['full_name'] ?? '',
-            $info['phone']     ?? '',
-            $info['address']   ?? '',
-            $info['city']      ?? '',
-            $info['province']  ?? '',
-            $info['zip']       ?? '',
-            $order['pay_method'] ?? '',
-            $info['notes']     ?? '',
+            $order['pay_method'],
+            $order['shipping_info']['full_name'] ?? '',
+            $order['shipping_info']['phone']     ?? '',
+            $order['shipping_info']['address']   ?? '',
+            $order['shipping_info']['city']      ?? '',
+            $order['shipping_info']['province']  ?? '',
+            $order['shipping_info']['zip']       ?? '',
+            $order['shipping_info']['notes']     ?? '',
         ]);
 
-        $orderDbId = (int)$db->lastInsertId();
+        $ordNo = $db->lastInsertId();
 
-        $itemStmt = $db->prepare("
-            INSERT INTO order_items
-            (order_db_id, product_id, product_name, price, qty)
-            VALUES (?, ?, ?, ?, ?)
-        ");
-
-        foreach ($order['items'] as $ci) {
+        foreach ($order['items'] as $item) {
+            $itemStmt = $db->prepare("
+                INSERT INTO order_items
+                (ord_no, inv_id, product_name, price, qty)
+                VALUES (?, ?, ?, ?, ?)
+            ");
             $itemStmt->execute([
-                $orderDbId,
-                (int)($ci['id']    ?? 0),
-                $ci['name']        ?? '',
-                (float)($ci['price'] ?? 0),
-                (int)($ci['qty']   ?? 1),
+                $ordNo,
+                (int)($item['inv_id'] ?? 0),
+                $item['name'] ?? '',
+                (float)($item['price'] ?? 0),
+                (int)($item['qty'] ?? 1)
             ]);
         }
-
-        return true;
-
+        $db->commit();
     } catch (PDOException $e) {
-
-        return false;
-    }
-}
-
-// ── UPDATE USER IN DATABASE ───────────────────────────────────
-function saveUserToDB(string $email, string $name, ?string $hashedPassword, ?string $profilePic): void {
-
-    try {
-
-        $db = getDBConnection();
-
-        if ($hashedPassword && $profilePic !== null) {
-
-            $stmt = $db->prepare("
-                UPDATE users SET name = ?, password = ?, profile_pic = ?
-                WHERE email = ?
-            ");
-
-            $stmt->execute([$name, $hashedPassword, $profilePic, $email]);
-
-        } elseif ($hashedPassword) {
-
-            $stmt = $db->prepare("
-                UPDATE users SET name = ?, password = ?
-                WHERE email = ?
-            ");
-
-            $stmt->execute([$name, $hashedPassword, $email]);
-
-        } elseif ($profilePic !== null) {
-
-            $stmt = $db->prepare("
-                UPDATE users SET name = ?, profile_pic = ?
-                WHERE email = ?
-            ");
-
-            $stmt->execute([$name, $profilePic, $email]);
-
-        } else {
-
-            $stmt = $db->prepare("
-                UPDATE users SET name = ?
-                WHERE email = ?
-            ");
-
-            $stmt->execute([$name, $email]);
+        if ($db->inTransaction()) {
+            $db->rollBack();
         }
-
-    } catch (PDOException $e) {
-        // silently fail
+        die("saveOrderToDB ERROR: " . $e->getMessage());
     }
 }
 
 // ── LOAD ORDERS ───────────────────────────────────────────────
 function loadOrders(): array {
-
     try {
-
         $db = getDBConnection();
-
         $stmt = $db->query("
             SELECT * FROM orders
-            ORDER BY id DESC
+            ORDER BY ord_no DESC
         ");
-
         $orders = $stmt->fetchAll();
 
         foreach ($orders as &$order) {
-
             $itemStmt = $db->prepare("
-                SELECT * FROM order_items
-                WHERE order_db_id = ?
+                SELECT *
+                FROM order_items
+                WHERE ord_no = ?
             ");
-
-            $itemStmt->execute([$order->id]);
-
+            $itemStmt->execute([$order->ord_no]);
             $order->items = $itemStmt->fetchAll();
         }
-
         return $orders;
-
     } catch (PDOException $e) {
-
         die("loadOrders ERROR: " . $e->getMessage());
+    }
+}
+
+// ── LOAD USER ORDERS ──────────────────────────────────────────
+function loadUserOrders(string $email): array {
+    try {
+        $db = getDBConnection();
+        $stmt = $db->prepare("
+            SELECT * FROM orders
+            WHERE email = ?
+            ORDER BY ord_no DESC
+        ");
+        $stmt->execute([$email]);
+        $orders = $stmt->fetchAll();
+
+        foreach ($orders as &$order) {
+            $itemStmt = $db->prepare("
+                SELECT *
+                FROM order_items
+                WHERE ord_no = ?
+            ");
+            $itemStmt->execute([$order->ord_no]);
+            $order->items = $itemStmt->fetchAll();
+        }
+        return $orders;
+    } catch (PDOException $e) {
+        die("loadUserOrders ERROR: " . $e->getMessage());
     }
 }
 
@@ -450,70 +315,45 @@ function loadOrders(): array {
 if (!isset($_SESSION['cart'])) {
     $_SESSION['cart'] = [];
 }
-
 if (!isset($_SESSION['orders'])) {
     $_SESSION['orders'] = [];
 }
-
 if (!isset($_SESSION['users'])) {
     $_SESSION['users'] = [];
 }
 
 // ── AUTO LOAD INVENTORY TO SESSION ───────────────────────────
 $_SESSION['inventory'] = [];
-
 try {
-
     $products = loadInventory();
-
     foreach ($products as $item) {
-
-        $_SESSION['inventory'][$item->id] = $item;
+        $_SESSION['inventory'][(int)$item->inv_id] = $item;
     }
-
 } catch (Exception $e) {
-}
-
-// ── LOAD CART FROM DB INTO SESSION FOR LOGGED-IN USER ────────
-if (!empty($_SESSION['logged_in_user'])) {
-    $__cartEmail = $_SESSION['logged_in_user'];
-    $_SESSION['cart'][$__cartEmail] = loadCartForUser($__cartEmail);
+    // Fail silently
 }
 
 // ── COOKIE AUTO LOGIN ─────────────────────────────────────────
 $currentScript = basename($_SERVER['PHP_SELF'] ?? '');
 
-// AJAX endpoints that must never receive an HTML redirect
-$ajaxScripts = ['addcart.php'];
-
 if (
     !in_array($currentScript, ['logsign.php', 'logout.php']) &&
     !empty($_SESSION['logged_in_user'])
 ) {
-
     if (
-        empty($_COOKIE['zafirah_user']) ||
-        $_COOKIE['zafirah_user'] !== $_SESSION['logged_in_user']
+        empty($_COOKIE['zythera_user']) ||
+        $_COOKIE['zythera_user'] !== $_SESSION['logged_in_user']
     ) {
-
         unset($_SESSION['logged_in_user']);
         unset($_SESSION['role']);
-
-        if (in_array($currentScript, $ajaxScripts)) {
-            // Return JSON redirect instruction instead of HTTP redirect
-            header('Content-Type: application/json');
-            echo json_encode(['redirect' => 'logsign.php']);
-            exit;
-        }
 
         header('Location: logsign.php?expired=1');
         exit;
     }
 
     $exp = time() + 43200;
-
     setcookie(
-        'zafirah_user',
+        'zythera_user',
         $_SESSION['logged_in_user'],
         $exp,
         '/'
@@ -524,57 +364,45 @@ if (
 define('TAX_RATE', 0.12);
 
 function sanitize(string $v): string {
-
     return trim(htmlspecialchars($v));
 }
 
 function isBlank(string $v): bool {
-
     return empty(trim($v));
 }
 
 function formatPrice(float $p): string {
-
     return '₱' . number_format($p, 2);
 }
 
 function getStockLabel(int $s): string {
-
     if ($s <= 0) {
         return 'Out of Stock';
     }
-
     if ($s <= 5) {
         return 'Low Stock';
     }
-
     return 'In Stock';
 }
 
 function getStockBadge(int $s): string {
-
     switch (getStockLabel($s)) {
-
         case 'Out of Stock':
             return 'bg-danger';
-
         case 'Low Stock':
             return 'bg-warning text-dark';
-
         default:
             return 'bg-success';
     }
 }
 
 function nowFormatted(): string {
-
     return date('M d, Y h:i A');
 }
 
 // ── PRODUCT CLASS ─────────────────────────────────────────────
 class Product {
-
-    public int $id;
+    public int $inv_id;
     public string $name;
     public string $size;
     public string $color;
@@ -585,7 +413,7 @@ class Product {
     public string $image;
 
     public function __construct(
-        int $id,
+        int $inv_id,
         string $name,
         string $size,
         string $color,
@@ -595,8 +423,7 @@ class Product {
         string $category,
         string $image
     ) {
-
-        $this->id = $id;
+        $this->inv_id = $inv_id;
         $this->name = $name;
         $this->size = $size;
         $this->color = $color;
@@ -608,12 +435,10 @@ class Product {
     }
 
     public function getFormattedPrice(): string {
-
         return formatPrice($this->price);
     }
 
     public function isAvailable(): bool {
-
         return $this->stock > 0;
     }
 }

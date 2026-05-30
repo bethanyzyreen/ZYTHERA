@@ -2,10 +2,7 @@
 require_once 'config.php';
 
 // ── Admin-only access control ─────────────────────────────────
-// Only these two accounts are allowed into the admin panel.
-// Everyone else (regular users) is silently redirected to the store.
-define('ADMIN_EMAILS', ['zafirah@gmail.com', 'admin@gmail.com']);
-
+// Only users with role = 'admin' in the database can enter.
 $loggedIn = $_SESSION['logged_in_user'] ?? null;
 
 // Not logged in at all → go to login page
@@ -14,10 +11,18 @@ if (!$loggedIn) {
     exit;
 }
 
-// Logged in but NOT an admin → send to the store
-if (!in_array($loggedIn, ADMIN_EMAILS, true)) {
-    header('Location: website.php');
-    exit;
+// Check role from session (set during login) or from DB
+$adminRole = $_SESSION['role'] ?? '';
+if ($adminRole !== 'admin') {
+    // Double-check from DB in case session was tampered
+    $dbCheck = getDBConnection()->prepare("SELECT role FROM users WHERE email = ? LIMIT 1");
+    $dbCheck->execute([$loggedIn]);
+    $dbRow = $dbCheck->fetch();
+    if (!$dbRow || $dbRow->role !== 'admin') {
+        header('Location: website.php');
+        exit;
+    }
+    $_SESSION['role'] = 'admin'; // fix session
 }
 // ─────────────────────────────────────────────────────────────
 ?>
@@ -26,7 +31,7 @@ if (!in_array($loggedIn, ADMIN_EMAILS, true)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZAFIRAH | ADMIN</title>
+    <title>ZYTHERA | ADMIN</title>
 
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -101,7 +106,7 @@ if (!in_array($loggedIn, ADMIN_EMAILS, true)) {
             font-family: 'DM Sans', sans-serif;
         }
 
-        .btn-zafirah {
+        .btn-zythera {
             background-color: var(--deep-green);
             color: white;
             border-radius: 50px;
@@ -111,7 +116,7 @@ if (!in_array($loggedIn, ADMIN_EMAILS, true)) {
             transition: 0.3s;
         }
 
-        .btn-zafirah:hover {
+        .btn-zythera:hover {
             background-color: var(--sage-dark);
             color: white;
             transform: translateY(-2px);
@@ -344,7 +349,7 @@ if (!in_array($loggedIn, ADMIN_EMAILS, true)) {
 <!-- ── SIDEBAR ── -->
 <div class="sidebar" id="adminSidebar">
     <div class="sidebar-brand">
-        <div class="brand-name">ZAFIRAH</div>
+        <div class="brand-name">ZYTHERA</div>
         <div class="brand-sub">Admin Panel</div>
     </div>
 
@@ -361,11 +366,23 @@ if (!in_array($loggedIn, ADMIN_EMAILS, true)) {
         </button>
 
         <div class="sidebar-label" style="margin-top:8px;">Orders</div>
-        <button class="sidebar-link" onclick="showSection('orders')" id="nav-orders">
-            <i class="fas fa-receipt"></i> Order History
+        <button class="sidebar-link" onclick="showSection('orders')" id="nav-orders" style="display:flex;align-items:center;justify-content:space-between;">
+            <span><i class="fas fa-receipt me-2"></i>Order History</span>
+            <?php
+            $pendingCount = 0;
+            try {
+                $pStmt = getDBConnection()->query("SELECT COUNT(*) FROM orders WHERE status='Pending'");
+                $pendingCount = (int)$pStmt->fetchColumn();
+            } catch(Exception $e) {}
+            if ($pendingCount > 0): ?>
+            <span id="pending-badge" style="background:#dc2626;color:#fff;border-radius:50px;font-size:.6rem;font-weight:700;padding:2px 7px;"><?= $pendingCount ?></span>
+            <?php endif; ?>
         </button>
         <button class="sidebar-link" onclick="showSection('users')" id="nav-users">
             <i class="fas fa-users"></i> User Summary
+        </button>
+        <button class="sidebar-link" onclick="showSection('messages')" id="nav-messages">
+            <i class="fas fa-envelope"></i> Messages
         </button>
 
         <div class="sidebar-label" style="margin-top:8px;">Store</div>
@@ -454,7 +471,7 @@ $adminName = $adminData ? $adminData->name : 'Admin';
 <?php
 $inventory   = $_SESSION['inventory'] ?? [];
 $searchQuery = trim($_GET['search'] ?? '');
-uasort($inventory, fn($a,$b) => $a->id <=> $b->id);
+uasort($inventory, fn($a,$b) => $a->inv_id <=> $b->inv_id);
 if ($searchQuery !== '') {
     $needle = strtolower($searchQuery);
     $inventory = array_filter($inventory, function($item) use ($needle) {
@@ -475,7 +492,7 @@ if ($searchQuery !== '') {
     data-description="<?= htmlspecialchars(strtolower((string)($item->description ?? ''))) ?>"
     data-size="<?=        htmlspecialchars(strtolower((string)($item->size        ?? ''))) ?>">
 
-    <td><?= $item->id ?></td>
+    <td><?= $item->inv_id ?></td>
     <td>
         <img src="<?= htmlspecialchars($item->image) ?>" width="50" style="border-radius:8px;"
              onerror="this.src='https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=60&h=50&fit=crop'">
@@ -495,14 +512,14 @@ if ($searchQuery !== '') {
     <td>
         <div class="d-flex gap-1 justify-content-center flex-wrap">
             <button class="btn btn-edit btn-sm"
-                onclick="editProduct('<?= $item->id ?>','<?= addslashes($item->name) ?>','<?= addslashes($item->size) ?>','<?= addslashes($item->color) ?>','<?= $item->price ?>','<?= addslashes($item->description) ?>','<?= $item->stock ?>','<?= addslashes($item->category) ?>','<?= addslashes($item->image) ?>')">
+                onclick="editProduct('<?= $item->inv_id ?>','<?= addslashes($item->name) ?>','<?= addslashes($item->size) ?>','<?= addslashes($item->color) ?>','<?= $item->price ?>','<?= addslashes($item->description) ?>','<?= $item->stock ?>','<?= addslashes($item->category) ?>','<?= addslashes($item->image) ?>')">
                 <i class="fas fa-edit"></i> Edit
             </button>
             <button class="btn btn-outline-success btn-sm"
-                onclick="let qty=prompt('Units to add?');if(qty)window.location.href='admin_action.php?restock_id=<?= $item->id ?>&amount='+qty;">
+                onclick="let qty=prompt('Units to add?');if(qty)window.location.href='admin_action.php?restock_id=<?= $item->inv_id ?>&amount='+qty;">
                 <i class="fas fa-plus-circle"></i> Restock
             </button>
-            <a href="admin_action.php?delete=<?= $item->id ?>"
+            <a href="admin_action.php?delete=<?= $item->inv_id ?>"
                class="btn btn-danger btn-sm"
                onclick="return confirm('Delete this product?')">
                <i class="fas fa-trash"></i> Delete
@@ -579,7 +596,7 @@ if ($searchQuery !== '') {
           
             <div class="col-12 d-flex gap-2 mt-2">
 <br><br>
-                <button type="submit" class="btn btn-zafirah flex-fill">
+                <button type="submit" class="btn btn-zythera flex-fill">
                     <i class="fas fa-save me-2"></i>Save Product
                 </button>
                 <button type="button" class="btn btn-outline-secondary rounded-pill px-4"
@@ -598,17 +615,19 @@ if ($searchQuery !== '') {
     $totalProducts = count($inv);
     $outOfStock    = count(array_filter($inv, fn($i)=>((int)($i->stock??0))===0));
     $lowStock      = count(array_filter($inv, fn($i)=>((int)($i->stock??0))>0 && ((int)($i->stock??0))<=5));
-    $totalUsers    = count($_SESSION['users'] ?? []);
-    $allOrd        = $_SESSION['orders'] ?? [];
-    $totalOrders   = array_sum(array_map('count', $allOrd));
+
+    // Load users and orders fresh from DB
+    $dbUsers       = loadUsers();
+    $totalUsers    = count($dbUsers);
+    $dbAllOrders   = loadOrders();
+    $totalOrders   = count($dbAllOrders);
     $revenue       = 0;
-    foreach ($allOrd as $uO) foreach ($uO as $o) {
-        // Use the stored total (includes shipping) if available, else fall back to items sum
-        if (isset($o['total']) && (float)$o['total'] > 0) {
-            $revenue += (float)$o['total'];
+    foreach ($dbAllOrders as $o) {
+        if (isset($o->total) && (float)$o->total > 0) {
+            $revenue += (float)$o->total;
         } else {
-            foreach ($o['items'] as $oi)
-                if (is_array($oi)) $revenue += (float)($oi['price']??0) * (int)($oi['qty']??1);
+            foreach ($o->items as $oi)
+                $revenue += (float)($oi->price ?? 0) * (int)($oi->qty ?? 1);
         }
     }
     $cards = [
@@ -650,47 +669,67 @@ if ($searchQuery !== '') {
     </div>
 
     <?php
-    // Always load orders fresh from file for admin
+    // Always load orders fresh from DB for admin
     $allOrders2    = loadOrders();
     $totalOrdCount = 0;
     $grandTotal2   = 0;
-    foreach ($allOrders2 as $oEmail => $userOrders) {
-        foreach ($userOrders as $order) {
-            $totalOrdCount++;
-            $orderStoredTotal = (float)($order['total'] ?? 0);
-            $orderStatus = $order['status'] ?? 'Pending';
-            $statusColors = [
-                'Pending'    => ['bg'=>'#fff7ed','color'=>'#c2410c','border'=>'#fed7aa'],
-                'Processing' => ['bg'=>'#eff6ff','color'=>'#1d4ed8','border'=>'#bfdbfe'],
-                'Shipped'    => ['bg'=>'#f0f9ff','color'=>'#0369a1','border'=>'#bae6fd'],
-                'Delivered'  => ['bg'=>'#f0fdf4','color'=>'#15803d','border'=>'#bbf7d0'],
-                'Cancelled'  => ['bg'=>'#fef2f2','color'=>'#b91c1c','border'=>'#fecaca'],
-            ];
-            $sc = $statusColors[$orderStatus] ?? $statusColors['Pending'];
+    foreach ($allOrders2 as $order):
+        $oEmail = $order->email ?? '';
+        $totalOrdCount++;
+        $orderStoredTotal = (float)($order->total ?? 0);
+        $orderStatus = $order->status ?? 'Pending';
+        $orderId     = $order->order_id ?? '';
+        $orderItems  = $order->items ?? [];
+        $orderShipping = (float)($order->shipping ?? 0);
+        $orderDate   = $order->date ?? '';
+        $orderPayMethod = $order->pay_method ?? '';
+        // Use flat columns directly from schema
+        $shippingInfo = [
+            'full_name' => $order->full_name ?? '',
+            'phone'     => $order->phone     ?? '',
+            'address'   => $order->address   ?? '',
+            'city'      => $order->city       ?? '',
+            'province'  => $order->province   ?? '',
+            'zip'       => $order->zip        ?? '',
+        ];
+        $shippingAddr = implode(', ', array_filter([
+            $shippingInfo['full_name'] ?? '',
+            $shippingInfo['address']   ?? '',
+            $shippingInfo['city']      ?? '',
+            $shippingInfo['province']  ?? '',
+        ]));
+        $statusColors = [
+            'Pending'    => ['bg'=>'#fff7ed','color'=>'#c2410c','border'=>'#fed7aa'],
+            'Processing' => ['bg'=>'#eff6ff','color'=>'#1d4ed8','border'=>'#bfdbfe'],
+            'Shipped'    => ['bg'=>'#f0f9ff','color'=>'#0369a1','border'=>'#bae6fd'],
+            'Delivered'  => ['bg'=>'#f0fdf4','color'=>'#15803d','border'=>'#bbf7d0'],
+            'Cancelled'  => ['bg'=>'#fef2f2','color'=>'#b91c1c','border'=>'#fecaca'],
+        ];
+        $sc = $statusColors[$orderStatus] ?? $statusColors['Pending'];
     ?>
-    <div class="order-card mb-3" id="order-card-<?= htmlspecialchars($order['order_id'] ?? '') ?>">
+    <div class="order-card mb-3" id="order-card-<?= htmlspecialchars($orderId) ?>">
         <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
             <span class="order-user-tag"><i class="fas fa-user me-1"></i><?= htmlspecialchars($oEmail) ?></span>
-            <?php if (!empty($order['order_id'])): ?>
+            <?php if ($orderId !== ''): ?>
             <span style="background:#f0f7f0;color:#2d5a2d;border-radius:50px;padding:2px 10px;font-size:.72rem;font-weight:700;">
-                #<?= htmlspecialchars($order['order_id']) ?>
+                #<?= htmlspecialchars($orderId) ?>
             </span>
             <?php endif; ?>
-            <?php if (!empty($order['pay_method'])): ?>
+            <?php if ($orderPayMethod !== ''): ?>
             <span style="background:#f5f2ec;color:#666;border-radius:50px;padding:2px 10px;font-size:.72rem;">
-                <i class="fas fa-credit-card me-1"></i><?= htmlspecialchars($order['pay_method']) ?>
+                <i class="fas fa-credit-card me-1"></i><?= htmlspecialchars($orderPayMethod) ?>
             </span>
             <?php endif; ?>
             <!-- Status Badge + Update -->
-            <span id="status-badge-<?= htmlspecialchars($order['order_id'] ?? '') ?>"
+            <span id="status-badge-<?= htmlspecialchars($orderId) ?>"
                 style="background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>;border:1px solid <?= $sc['border'] ?>;
                 border-radius:50px;padding:2px 10px;font-size:.72rem;font-weight:700;">
                 <?= htmlspecialchars($orderStatus) ?>
             </span>
             <div class="ms-auto d-flex align-items-center gap-2">
                 <select class="form-select form-select-sm" style="width:auto;font-size:.75rem;border-radius:8px;"
-                    id="status-sel-<?= htmlspecialchars($order['order_id'] ?? '') ?>"
-                    onchange="updateOrderStatus('<?= htmlspecialchars($oEmail, ENT_QUOTES) ?>','<?= htmlspecialchars($order['order_id'] ?? '', ENT_QUOTES) ?>',this.value)">
+                    id="status-sel-<?= htmlspecialchars($orderId) ?>"
+                    onchange="updateOrderStatus('<?= htmlspecialchars($oEmail, ENT_QUOTES) ?>','<?= htmlspecialchars($orderId, ENT_QUOTES) ?>',this.value)">
                     <option value="">— Update Status —</option>
                     <option value="Pending">Pending</option>
                     <option value="Processing">Processing</option>
@@ -698,15 +737,19 @@ if ($searchQuery !== '') {
                     <option value="Delivered">Delivered</option>
                     <option value="Cancelled">Cancelled</option>
                 </select>
-                <small class="text-muted"><i class="fas fa-calendar me-1"></i><?= htmlspecialchars($order['date'] ?? '') ?></small>
+                <small class="text-muted"><i class="fas fa-calendar me-1"></i><?= htmlspecialchars($orderDate) ?></small>
+                <button onclick="toggleOrderDetail('<?= htmlspecialchars($orderId, ENT_QUOTES) ?>')"
+                  style="background:#f0f7f0;color:#2d5a2d;border:1px solid #d4e4d4;border-radius:8px;padding:3px 10px;font-size:.72rem;font-weight:600;cursor:pointer;white-space:nowrap;">
+                  <i class="fas fa-expand-alt me-1"></i>Details
+                </button>
             </div>
         </div>
         <?php
         $orderSubtotal2 = 0;
-        foreach ($order['items'] as $oi):
-            $oiPrice = is_array($oi) ? (float)($oi['price'] ?? 0) : 0;
-            $oiQty   = is_array($oi) ? (int)($oi['qty'] ?? 1) : (int)$oi;
-            $oiName  = is_array($oi) ? ($oi['name'] ?? 'Item') : $oi;
+        foreach ($orderItems as $oi):
+            $oiPrice = (float)($oi->price ?? 0);
+            $oiQty   = (int)($oi->qty ?? 1);
+            $oiName  = $oi->product_name ?? 'Item';
             $oiLine  = $oiPrice * $oiQty;
             $orderSubtotal2 += $oiLine;
         ?>
@@ -717,16 +760,18 @@ if ($searchQuery !== '') {
             <?php endif; ?>
         </div>
         <?php endforeach; ?>
-        <?php $orderShipping = (float)($order['shipping'] ?? 0); ?>
         <?php if ($orderShipping > 0): ?>
         <div style="display:flex;justify-content:space-between;font-size:.82rem;padding:4px 0;color:#888;">
             <span><i class="fas fa-truck me-1"></i>Shipping Fee</span>
             <span>₱<?= number_format($orderShipping) ?></span>
         </div>
         <?php endif; ?>
-        <?php if (!empty($order['shipping_address'])): ?>
+        <?php if (!empty($shippingAddr)): ?>
         <div style="font-size:.75rem;color:#999;margin-top:4px;">
-            <i class="fas fa-map-marker-alt me-1" style="color:var(--sage-dark);"></i><?= htmlspecialchars($order['shipping_address']) ?>
+            <i class="fas fa-map-marker-alt me-1" style="color:var(--sage-dark);"></i><?= htmlspecialchars($shippingAddr) ?>
+            <?php if (!empty($shippingInfo['phone'])): ?>
+            &nbsp;·&nbsp; <i class="fas fa-phone me-1"></i><?= htmlspecialchars($shippingInfo['phone']) ?>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
         <?php if ($orderStoredTotal > 0): ?>
@@ -740,10 +785,46 @@ if ($searchQuery !== '') {
         </div>
         <?php $grandTotal2 += $orderSubtotal2; ?>
         <?php endif; ?>
+
+        <!-- ── Collapsible Order Detail Panel ─────────── -->
+        <div id="detail-<?= htmlspecialchars($orderId) ?>" style="display:none;margin-top:14px;border-top:2px dashed #d4e4d4;padding-top:14px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+              <div style="background:#f9f9f6;border-radius:10px;padding:10px;">
+                <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:4px;">Recipient</div>
+                <div style="font-weight:600;font-size:.84rem;color:#1a2e1a;"><?= htmlspecialchars($shippingInfo['full_name'] ?? '—') ?></div>
+                <div style="font-size:.78rem;color:#666;"><?= htmlspecialchars($shippingInfo['phone'] ?? '') ?></div>
+              </div>
+              <div style="background:#f9f9f6;border-radius:10px;padding:10px;">
+                <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:4px;">Payment</div>
+                <div style="font-weight:600;font-size:.84rem;color:#1a2e1a;"><?= htmlspecialchars($orderPayMethod ?: '—') ?></div>
+              </div>
+              <div style="background:#f9f9f6;border-radius:10px;padding:10px;grid-column:1/-1;">
+                <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:4px;">Delivery Address</div>
+                <div style="font-size:.82rem;color:#444;"><?= htmlspecialchars(implode(', ', array_filter([
+                    $shippingInfo['address']  ?? '',
+                    $shippingInfo['city']     ?? '',
+                    $shippingInfo['province'] ?? '',
+                    $shippingInfo['zip']      ?? '',
+                ]))) ?: '—' ?></div>
+              </div>
+            </div>
+            <!-- Quick status update buttons -->
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              <?php foreach (['Pending','Processing','Shipped','Delivered','Cancelled'] as $qs):
+                $qColors = ['Pending'=>'#fff7ed,#c2410c','Processing'=>'#eff6ff,#1d4ed8',
+                            'Shipped'=>'#f0f9ff,#0369a1','Delivered'=>'#f0fdf4,#15803d','Cancelled'=>'#fef2f2,#b91c1c'];
+                [$qBg,$qFg] = explode(',', $qColors[$qs]);
+              ?>
+              <button onclick="quickStatus('<?= htmlspecialchars($oEmail, ENT_QUOTES) ?>','<?= htmlspecialchars($orderId, ENT_QUOTES) ?>','<?= $qs ?>')"
+                style="background:<?= $qBg ?>;color:<?= $qFg ?>;border:1px solid <?= $qFg ?>33;border-radius:50px;padding:4px 12px;font-size:.72rem;font-weight:700;cursor:pointer;">
+                <?= $qs ?>
+              </button>
+              <?php endforeach; ?>
+            </div>
+        </div>
+
     </div>
-    <?php
-        }
-    }
+    <?php endforeach;
     if ($totalOrdCount === 0): ?>
     <div class="text-center py-5 text-muted">
         <i class="fas fa-receipt fa-3x mb-3 opacity-25"></i>
@@ -781,7 +862,7 @@ if ($searchQuery !== '') {
     </div>
 
     <?php
-    $allUsers2 = $_SESSION['users'] ?? [];
+    $allUsers2 = loadUsers();
     if (empty($allUsers2)): ?>
     <div class="text-center py-5 text-muted">
         <i class="fas fa-users fa-3x mb-3 opacity-25"></i>
@@ -789,16 +870,33 @@ if ($searchQuery !== '') {
     </div>
     <?php else: ?>
     <div class="row g-3">
-    <?php foreach ($allUsers2 as $uEmail => $uData):
-        $uOrders2   = count($_SESSION['orders'][$uEmail] ?? []);
-        $uCartCount2 = 0;
-        foreach (($_SESSION['cart'][$uEmail] ?? []) as $ci)
-            $uCartCount2 += is_array($ci) ? (int)($ci['qty'] ?? 1) : 1;
-        $uSpend = 0;
-        foreach (($_SESSION['orders'][$uEmail] ?? []) as $uo)
-            foreach ($uo['items'] as $oi)
-                if (is_array($oi)) $uSpend += (float)($oi['price']??0) * (int)($oi['qty']??1);
-        $isAdmin = ($uData['role'] ?? 'user') === 'admin';
+    <?php
+    // Pre-load orders + carts for user stats
+    $dbAllOrders3 = loadOrders();
+    $dbAllCarts3  = loadCarts();
+
+    // Index orders by email
+    $ordersByUser = [];
+    foreach ($dbAllOrders3 as $o) {
+        $ordersByUser[$o->email][] = $o;
+    }
+    // Index carts by email
+    $cartByUser = [];
+    foreach ($dbAllCarts3 as $c) {
+        $cartByUser[$c['email']][] = $c;
+    }
+
+    foreach ($allUsers2 as $uObj):
+        $uEmail = $uObj->email ?? '';
+        $uData  = ['name' => $uObj->name ?? '', 'role' => $uObj->role ?? 'user'];
+
+        $uOrders2    = count($ordersByUser[$uEmail] ?? []);
+        $uCartItems  = $cartByUser[$uEmail] ?? [];
+        $uCartCount2 = array_sum(array_column($uCartItems, 'qty'));
+        $uSpend      = 0;
+        foreach ($ordersByUser[$uEmail] ?? [] as $uo)
+            $uSpend += (float)($uo->total ?? 0);
+        $isAdmin = ($uData['role'] === 'admin');
     ?>
     <div class="col-md-6">
         <div class="order-card h-100">
@@ -809,7 +907,7 @@ if ($searchQuery !== '') {
                 </div>
                 <div style="flex:1;min-width:0;">
                     <div class="fw-bold text-truncate" style="color:#1a2e1a;"><?= htmlspecialchars($uData['name'] ?? '') ?></div>
-                    <div style="font-size:.75rem;color:var(--deep-green);opacity:.65;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;"><?= htmlspecialchars($uEmail) ?></div>
+                    <div style="font-size:.75rem;color:var(--deep-green);opacity:.65;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;" class="user-email-tag" data-email="<?= htmlspecialchars($uEmail) ?>"><?= htmlspecialchars($uEmail) ?></div>
                 </div>
                 <span style="background:<?= $isAdmin?'#fee2e2':'#d4e4d4' ?>;color:<?= $isAdmin?'#b91c1c':'#2d5a2d' ?>;
                     border-radius:20px;font-size:.68rem;font-weight:700;padding:3px 10px;letter-spacing:1px;white-space:nowrap;">
@@ -846,6 +944,54 @@ if ($searchQuery !== '') {
 </div>
 </div><!-- /section-users -->
 
+<!-- ── SECTION: Messages ── -->
+<div id="section-messages" style="display:none;">
+<div class="card p-4 mt-3">
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <div style="width:44px;height:44px;background:var(--sage-light);border-radius:12px;display:flex;align-items:center;justify-content:center;">
+            <i class="fas fa-envelope" style="color:var(--deep-green);font-size:1.1rem;"></i>
+        </div>
+        <div>
+            <h5 class="fw-bold mb-0" style="color:var(--deep-green);">Customer Messages</h5>
+        </div>
+    </div>
+    <?php
+    $msgs = [];
+    try {
+        $db2 = getDBConnection();
+        $msgStmt = $db2->query("SELECT * FROM messages ORDER BY created_at DESC");
+        $msgs = $msgStmt->fetchAll();
+    } catch (Exception $e) { /* table may not exist yet */ }
+    if (empty($msgs)): ?>
+    <div class="text-center py-5 text-muted">
+        <i class="fas fa-envelope-open fa-3x mb-3 opacity-25"></i>
+        <p>No messages received yet.</p>
+    </div>
+    <?php else: ?>
+    <div class="table-responsive">
+    <table class="table align-middle" style="font-size:.88rem;">
+        <thead>
+            <tr>
+                <th>Name</th><th>Email</th><th>Subject</th><th>Message</th><th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($msgs as $m): ?>
+        <tr>
+            <td class="fw-semibold"><?= htmlspecialchars($m->full_name ?? '') ?></td>
+            <td><?= htmlspecialchars($m->email ?? '') ?></td>
+            <td><?= htmlspecialchars($m->subject ?? '') ?></td>
+            <td style="max-width:260px;white-space:pre-wrap;word-break:break-word;"><?= htmlspecialchars($m->message ?? '') ?></td>
+            <td style="white-space:nowrap;color:#999;"><?= htmlspecialchars($m->created_at ?? '') ?></td>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+    </div>
+    <?php endif; ?>
+</div>
+</div><!-- /section-messages -->
+
 </div><!-- /container -->
 </div><!-- /main-content -->
 
@@ -868,10 +1014,11 @@ const sectionTitles = {
     analytics:  'Analytics Dashboard',
     orders:     'Order History',
     users:      'User Summary',
+    messages:   'Customer Messages',
 };
 
 function showSection(name) {
-    ['inventory','addproduct','analytics','orders','users'].forEach(s => {
+    ['inventory','addproduct','analytics','orders','users','messages'].forEach(s => {
         document.getElementById('section-' + s).style.display = s === name ? '' : 'none';
     });
     document.querySelectorAll('.sidebar-link').forEach(el => el.classList.remove('active'));
@@ -1012,17 +1159,79 @@ function deleteUser(email, name) {
         .catch(() => alert('Request failed.'));
 }
 
-function showToast(msg) {
+function showToast(msg, isError = false) {
     let t = document.getElementById('admin-toast');
     if (!t) {
         t = document.createElement('div');
         t.id = 'admin-toast';
-        t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#2d5a2d;color:#fff;padding:14px 22px;border-radius:12px;font-size:.86rem;z-index:9999;box-shadow:0 6px 24px rgba(0,0,0,.2);transition:.3s;';
+        t.style.cssText = 'position:fixed;bottom:24px;right:24px;color:#fff;padding:14px 22px;border-radius:12px;font-size:.86rem;z-index:9999;box-shadow:0 6px 24px rgba(0,0,0,.2);transition:.3s;';
         document.body.appendChild(t);
     }
+    t.style.background = isError ? '#dc2626' : '#2d5a2d';
     t.textContent = msg;
     t.style.opacity = '1';
-    setTimeout(() => t.style.opacity = '0', 3000);
+    setTimeout(() => t.style.opacity = '0', 3500);
+}
+
+// ── Toggle order detail panel ─────────────────────────────────
+function toggleOrderDetail(orderId) {
+    const panel = document.getElementById('detail-' + orderId);
+    if (!panel) return;
+    panel.style.display = panel.style.display === 'none' ? '' : 'none';
+}
+
+// ── Quick status button (in detail panel) ─────────────────────
+function quickStatus(email, orderId, newStatus) {
+    fetch('admin_action.php?update_status=1&email=' + encodeURIComponent(email)
+        + '&order_id=' + encodeURIComponent(orderId)
+        + '&status='   + encodeURIComponent(newStatus))
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const badge = document.getElementById('status-badge-' + orderId);
+            const statusColors = {
+                Pending:    { bg:'#fff7ed', color:'#c2410c', border:'#fed7aa' },
+                Processing: { bg:'#eff6ff', color:'#1d4ed8', border:'#bfdbfe' },
+                Shipped:    { bg:'#f0f9ff', color:'#0369a1', border:'#bae6fd' },
+                Delivered:  { bg:'#f0fdf4', color:'#15803d', border:'#bbf7d0' },
+                Cancelled:  { bg:'#fef2f2', color:'#b91c1c', border:'#fecaca' },
+            };
+            const sc = statusColors[newStatus] || statusColors['Pending'];
+            if (badge) {
+                badge.textContent = newStatus;
+                badge.style.background = sc.bg;
+                badge.style.color      = sc.color;
+                badge.style.border     = '1px solid ' + sc.border;
+            }
+            const sel = document.getElementById('status-sel-' + orderId);
+            if (sel) sel.value = '';
+            // Update pending badge in sidebar
+            updatePendingBadge();
+            showToast('✓ Order #' + orderId + ' → ' + newStatus);
+        } else {
+            showToast(data.message || 'Could not update status.', true);
+        }
+    }).catch(() => showToast('Request failed.', true));
+}
+
+// ── Refresh pending count on sidebar ─────────────────────────
+function updatePendingBadge() {
+    fetch('get_pending.php', { credentials: 'same-origin' })
+    .then(r => r.json())
+    .then(d => {
+        let badge = document.getElementById('pending-badge');
+        if (d.count > 0) {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.id = 'pending-badge';
+                badge.style.cssText = 'background:#dc2626;color:#fff;border-radius:50px;font-size:.6rem;font-weight:700;padding:2px 7px;';
+                document.getElementById('nav-orders').appendChild(badge);
+            }
+            badge.textContent = d.count;
+        } else if (badge) {
+            badge.remove();
+        }
+    }).catch(() => {});
 }
 
 window.addEventListener('DOMContentLoaded', () => {

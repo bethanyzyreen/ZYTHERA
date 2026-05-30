@@ -4,10 +4,8 @@ ini_set('display_errors', 1);
 
 include 'config.php';
 
-// ── ADD / EDIT PRODUCT ────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-
-    $id = $_POST['id'] ?? '';
+    $inv_id = $_POST['inv_id'] ?? ($_POST['id'] ?? '');
 
     $rawPrice = $_POST['price'] ?? '0';
     $cleanPrice = str_replace([',', '₱', ' '], '', $rawPrice);
@@ -17,7 +15,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     $category = $_POST['category'] ?? 'Sofa';
-
     if (strcasecmp($category, 'sofa') === 0) {
         $category = 'Sofa';
     } elseif (strcasecmp($category, 'chair') === 0) {
@@ -27,27 +24,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     $description = $_POST['description'] ?? '';
-
     if (str_word_count($description) < 3) {
         $description .= ' (short description)';
     }
 
     $imagePath = $_POST['image'] ?? '';
-
-    if (
-        strpos($imagePath, 'pci/') === false &&
-        strpos($imagePath, 'http') === false
-    ) {
+    if (strpos($imagePath, 'pci/') === false && strpos($imagePath, 'http') === false) {
         $imagePath = 'pci/' . ltrim($imagePath, '/');
     }
 
     try {
-
         $db = getDBConnection();
 
-        // ── EDIT PRODUCT ───────────────────────────────────────
-        if ($id !== '') {
-
+        if ($inv_id !== '') {
             $stmt = $db->prepare("
                 UPDATE inventory SET
                     name = ?,
@@ -58,9 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     stock = ?,
                     category = ?,
                     image = ?
-                WHERE id = ?
+                WHERE inv_id = ?
             ");
-
             $stmt->execute([
                 sanitize($_POST['name'] ?? ''),
                 sanitize($_POST['size'] ?? ''),
@@ -70,28 +58,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 (int)($_POST['stock'] ?? 0),
                 $category,
                 $imagePath,
-                (int)$id
+                (int)$inv_id
             ]);
-
         } else {
-
-            // ── ADD PRODUCT ────────────────────────────────────
             $stmt = $db->prepare("
-                INSERT INTO inventory
-                (
-                    name,
-                    size,
-                    color,
-                    price,
-                    description,
-                    stock,
-                    category,
-                    image
-                )
-                VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO inventory (name, size, color, price, description, stock, category, image)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ");
-
             $stmt->execute([
                 sanitize($_POST['name'] ?? ''),
                 sanitize($_POST['size'] ?? ''),
@@ -103,9 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $imagePath
             ]);
         }
-
     } catch (PDOException $e) {
-
         die("Database Error: " . $e->getMessage());
     }
 
@@ -113,107 +84,67 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     exit;
 }
 
-// ── UPDATE ORDER STATUS ───────────────────────────────────────
-if (isset($_GET['update_order'], $_GET['status'])) {
-
+if (isset($_GET['update_status'], $_GET['order_id'], $_GET['status'])) {
     header('Content-Type: application/json');
-
-    $orderId = trim($_GET['update_order']);
+    $orderId = trim($_GET['order_id']);
     $status  = trim($_GET['status']);
 
     try {
-
         $db = getDBConnection();
-
-        $stmt = $db->prepare("
-            UPDATE orders
-            SET status = ?
-            WHERE order_id = ?
-        ");
-
-        $stmt->execute([
-            $status,
-            $orderId
-        ]);
-
-        echo json_encode([
-            'success' => true
-        ]);
-
+        $stmt = $db->prepare("UPDATE orders SET status = ? WHERE order_id = ?");
+        $stmt->execute([$status, $orderId]);
+        echo json_encode(['success' => true]);
     } catch (PDOException $e) {
-
-        echo json_encode([
-            'success' => false,
-            'message' => $e->getMessage()
-        ]);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
-
     exit;
 }
 
-// ── DELETE USER ───────────────────────────────────────────────
 if (isset($_GET['delete_user'])) {
-
     header('Content-Type: application/json');
-
     $email = trim($_GET['delete_user']);
-
     $currentAdmin = $_SESSION['logged_in_user'] ?? '';
 
     if ($email === $currentAdmin) {
-
-        echo json_encode([
-            'success' => false,
-            'message' => 'Cannot delete yourself.'
-        ]);
-
+        echo json_encode(['success' => false, 'message' => 'Cannot delete yourself.']);
         exit;
     }
 
     try {
-
         $db = getDBConnection();
-
-        $stmt = $db->prepare("
-            DELETE FROM users
-            WHERE email = ?
-        ");
-
+        $stmt = $db->prepare("DELETE FROM users WHERE email = ?");
         $stmt->execute([$email]);
-
-        echo json_encode([
-            'success' => true
-        ]);
-
+        echo json_encode(['success' => true]);
     } catch (PDOException $e) {
-
-        echo json_encode([
-            'success' => false,
-            'message' => $e->getMessage()
-        ]);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
-
     exit;
 }
 
-// ── DELETE PRODUCT ────────────────────────────────────────────
-if (isset($_GET['delete'])) {
-
-    $id = (int)$_GET['delete'];
+if (isset($_GET['restock_id'], $_GET['amount'])) {
+    $inv_id = (int)$_GET['restock_id'];
+    $amount = max(0, (int)$_GET['amount']);
 
     try {
-
         $db = getDBConnection();
-
-        $stmt = $db->prepare("
-            DELETE FROM inventory
-            WHERE id = ?
-        ");
-
-        $stmt->execute([$id]);
-
+        $stmt = $db->prepare("UPDATE inventory SET stock = stock + ? WHERE inv_id = ?");
+        $stmt->execute([$amount, $inv_id]);
     } catch (PDOException $e) {
+        die("Restock Error: " . $e->getMessage());
+    }
 
+    header('Location: admin.php');
+    exit;
+}
+
+if (isset($_GET['delete'])) {
+    $inv_id = (int)$_GET['delete'];
+
+    try {
+        $db = getDBConnection();
+        $stmt = $db->prepare("DELETE FROM inventory WHERE inv_id = ?");
+        $stmt->execute([$inv_id]);
+    } catch (PDOException $e) {
         die("Delete Error: " . $e->getMessage());
     }
 

@@ -5,10 +5,10 @@ $message = '';
 $msgType = '';
 
 // ── Cookie-based auto-restore ─────────────────────────────────
-if (empty($_SESSION['logged_in_user']) && !empty($_COOKIE['zafirah_user'])) {
+if (empty($_SESSION['logged_in_user']) && !empty($_COOKIE['zythera_user'])) {
 
-    $cEmail = $_COOKIE['zafirah_user'];
-    $cRole  = $_COOKIE['zafirah_role'] ?? '';
+    $cEmail = $_COOKIE['zythera_user'];
+    $cRole  = $_COOKIE['zythera_role'] ?? '';
 
     $db = getDBConnection();
 
@@ -26,10 +26,19 @@ if (empty($_SESSION['logged_in_user']) && !empty($_COOKIE['zafirah_user'])) {
 
         $_SESSION['logged_in_user'] = $cEmail;
         $_SESSION['role']           = $cRole;
-        $_SESSION['login_time']     = $_COOKIE['zafirah_login'] ?? date('h:i A');
+        $_SESSION['login_time']     = $_COOKIE['zythera_login'] ?? date('h:i A');
 
-        // Load cart from DB into session
-        $_SESSION['cart'][$cEmail] = loadCartForUser($cEmail);
+        if (!isset($_SESSION['cart'][$cEmail])) {
+            $_SESSION['cart'][$cEmail] = [];
+        }
+
+        if (!isset($_SESSION['orders'][$cEmail])) {
+            $_SESSION['orders'][$cEmail] = [];
+        }
+
+        if (!isset($_SESSION['profile_pic'][$cEmail])) {
+            $_SESSION['profile_pic'][$cEmail] = null;
+        }
     }
 }
 
@@ -47,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = trim($_POST['password'] ?? '');
 
     $adminEmails = [
-        'zafirah@gmail.com',
+        'zythera@gmail.com',
         'admin@gmail.com'
     ];
 
@@ -147,13 +156,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $exp = time() + 43200;
 
-                    setcookie('zafirah_user',  $user->email,     $exp, '/');
-                    setcookie('zafirah_role',  $user->role,      $exp, '/');
-                    setcookie('zafirah_name',  $user->name,      $exp, '/');
-                    setcookie('zafirah_login', date('h:i A'),    $exp, '/');
+                    setcookie(
+                        'zythera_user',
+                        $user->email,
+                        $exp,
+                        '/'
+                    );
 
-                    // Load cart from DB into session
-                    $_SESSION['cart'][$user->email] = loadCartForUser($user->email);
+                    setcookie(
+                        'zythera_role',
+                        $user->role,
+                        $exp,
+                        '/'
+                    );
+
+                    setcookie(
+                        'zythera_name',
+                        $user->name,
+                        $exp,
+                        '/'
+                    );
+
+                    setcookie(
+                        'zythera_login',
+                        date('h:i A'),
+                        $exp,
+                        '/'
+                    );
+
+                    if (!isset($_SESSION['cart'][$user->email])) {
+                        $_SESSION['cart'][$user->email] = [];
+                    }
+
+                    if (!isset($_SESSION['orders'][$user->email])) {
+                        $_SESSION['orders'][$user->email] = [];
+                    }
+
+                    if (!isset($_SESSION['profile_pic'][$user->email])) {
+                        $_SESSION['profile_pic'][$user->email] = null;
+                    }
 
                     header(
                         'Location: ' .
@@ -189,7 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if (!empty($_SESSION['logged_in_user'])) {
 
     $adminEmails2 = [
-        'zafirah@gmail.com',
+        'zythera@gmail.com',
         'admin@gmail.com'
     ];
 
@@ -214,7 +255,7 @@ if (!empty($_SESSION['logged_in_user'])) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ZAFIRAH</title>
+<title>ZYTHERA</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 /* ── Reset ── */
@@ -427,7 +468,7 @@ document.addEventListener('DOMContentLoaded',()=>showToast(<?= json_encode($mess
 
 <!-- CARD -->
 <div class="card">
-  <div class="brand">ZAFIRAH</div>
+  <div class="brand">ZYTHERA</div>
   <p class="tagline">Furniture crafted for lives that deserve beauty.</p>
 
   <!-- TABS -->
@@ -476,8 +517,8 @@ document.addEventListener('DOMContentLoaded',()=>showToast(<?= json_encode($mess
   </form>
 
 <div class="footer-brand">
-  <img src="pci/Group_15.svg" class="footer-logo">
-  <span class="brand-name">ZAFIRAH</span>
+  <img src="pci/Group_15.png" class="footer-logo">
+  <span class="brand-name">ZYTHERA</span>
 </div>
 
 <script>
@@ -507,7 +548,7 @@ function showToast(msg, type='success') {
     return match ? decodeURIComponent(match[2]) : null;
   }
 
-  if (getCookie('zafirah_user')) {
+  if (getCookie('zythera_user')) {
     fill.style.width = '100%';
     fill.style.background = '#2d5a2d';
   } else {
