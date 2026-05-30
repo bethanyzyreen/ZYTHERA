@@ -18,6 +18,31 @@ if ($userEmail) {
 $userRole   = $_SESSION['role'] ?? 'user';
 $loginTime  = $_SESSION['login_time'] ?? null;
 
+// ── Handle "Get in Touch" contact form ────────────────────────
+$contactSuccess = false;
+$contactError   = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
+    $cName    = trim($_POST['c_name']    ?? '');
+    $cEmail   = trim($_POST['c_email']   ?? '');
+    $cSubject = trim($_POST['c_subject'] ?? '');
+    $cMsg     = trim($_POST['c_message'] ?? '');
+
+    if ($cName && $cEmail && $cMsg) {
+        try {
+            $db2 = getDBConnection();
+            $ins = $db2->prepare("
+                INSERT INTO messages (full_name, email, subject, message)
+                VALUES (?, ?, ?, ?)
+            ");
+            $ins->execute([$cName, $cEmail, $cSubject, $cMsg]);
+            $contactSuccess = true;
+        } catch (PDOException $e) {
+            $contactError = 'Could not send message. Please try again.';
+        }
+    } else {
+        $contactError = 'Please fill in your name, email, and message.';
+    }
+}
 
 $cartCount = 0;
 if ($userEmail && isset($_SESSION['cart'][$userEmail])) {
@@ -26,21 +51,29 @@ if ($userEmail && isset($_SESSION['cart'][$userEmail])) {
   }
 }
 
+// FIX: Fetch the inventory array directly from the database using your loadInventory() function
+$rawInventory = loadInventory();
+$inventory = [];
 
-$inventory = array_values($_SESSION['inventory'] ?? []);
+foreach ($rawInventory as $item) {
+    $inventory[] = $item;
+}
+
+// Sort inventory by ID accurately
 usort($inventory, function ($a, $b) {
-  $ia = is_object($a) ? (int)$a->id : (int)($a['id'] ?? 0);
-  $ib = is_object($b) ? (int)$b->id : (int)($b['id'] ?? 0);
+  $ia = is_object($a) ? (int)$a->inv_id : (int)($a['inv_id'] ?? 0);
+  $ib = is_object($b) ? (int)$b->inv_id : (int)($b['inv_id'] ?? 0);
   return $ia <=> $ib;
 });
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ZAFIRAH | FURNITURE</title>
+  <title>ZYTHERA | FURNITURE</title>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -90,13 +123,26 @@ usort($inventory, function ($a, $b) {
       height: 92vh;
       min-height: 480px;
       overflow: hidden;
-      background: linear-gradient(135deg, var(--deep) 0%, var(--sage) 55%, #4a7c4a 100%);
+      background: var(--deep);
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
+    .hero-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      opacity: 0.55;
+      z-index: 0;
+    }
+
     .hero-text {
+      position: relative;
+      z-index: 1;
       max-width: 700px;
       text-align: center;
       color: #fff;
@@ -209,29 +255,114 @@ usort($inventory, function ($a, $b) {
     }
 
     /* REVIEWS */
-    .review-wrap {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    .reviews-section {
+      padding: 64px 0;
+      overflow: hidden;
+    }
+
+    .review-scroll-wrapper {
+      position: relative;
+    }
+
+    .review-scroll-track {
+      display: flex;
       gap: 18px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      padding: 8px 4px 20px;
+      scrollbar-width: none;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .review-scroll-track::-webkit-scrollbar {
+      display: none;
+    }
+
+    .review-scroll-track.dragging {
+      cursor: grabbing;
+      scroll-snap-type: none;
     }
 
     .review-item {
-      background: #fff;
-      border-radius: 16px;
-      padding: 20px;
-      box-shadow: 0 2px 12px rgba(0, 0, 0, .05);
+      background: var(--green);
+      border-radius: 20px;
+      padding: 24px 22px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, .07);
+      min-width: 260px;
+      max-width: 260px;
+      scroll-snap-align: start;
+      flex-shrink: 0;
+      transition: transform .2s, box-shadow .2s;
     }
 
-    .review-avatar {
-      width: 40px;
-      height: 40px;
+    .review-item:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 32px rgba(0, 0, 0, .12);
+    }
+
+    .review-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .avatar {
+      width: 42px;
+      height: 42px;
       border-radius: 50%;
       object-fit: cover;
+      flex-shrink: 0;
+      border: 2px solid var(--sage);
+    }
+
+    .review-item p {
+      font-size: .88rem;
+      color: var(--green);
+      line-height: 1.6;
+      margin: 0;
     }
 
     .stars {
-      color: darkgreen;
-      font-size: .88rem;
+      color: var(--green);
+      font-size: .85rem;
+      letter-spacing: 1px;
+    }
+
+    /* Arrow nav buttons */
+    .scroll-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-60%);
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: none;
+      background: #fff;
+      color: var(--green);
+      box-shadow: 0 3px 14px rgba(0,0,0,.14);
+      cursor: pointer;
+      font-size: .95rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .2s, color .2s;
+      z-index: 2;
+    }
+
+    .scroll-btn:hover {
+      background: var(--green);
+      color: #fff;
+    }
+
+    .scroll-btn.left  { left: -16px; }
+    .scroll-btn.right { right: -16px; }
+
+    @media (max-width: 576px) {
+      .scroll-btn { display: none; }
+      .review-item { min-width: 220px; max-width: 220px; }
     }
 
     /* CONTACT */
@@ -328,10 +459,12 @@ usort($inventory, function ($a, $b) {
     }
 
     .brand {
+      font-family: 'Playfair Display', serif;
       font-size: 20px;
       font-weight: bold;
-      color: var(--deep-green);
+      color: var(--green);
     }
+
 
     .toast-fixed {
       position: fixed;
@@ -367,7 +500,7 @@ usort($inventory, function ($a, $b) {
   <!-- NAVBAR -->
   <nav class="navbar navbar-expand-lg fixed-top">
     <div class="container">
-      <a class="navbar-brand fw-bold" href="website.php">ZAFIRAH</a>
+      <a class="navbar-brand fw-bold" href="website.php">ZYTHERA</a>
 
       <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
         <span class="navbar-toggler-icon"></span>
@@ -411,7 +544,7 @@ usort($inventory, function ($a, $b) {
                 <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
               </svg>
               <span id="cart-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill"
-                style="font-size:.55rem;background:var(--green);color:#fff;">
+                style="font-size:.55rem;background:var(--green);color:#fff;<?= $cartCount == 0 ? 'display:none;' : '' ?>">
                 <?= $cartCount ?>
               </span>
             </a>
@@ -485,12 +618,12 @@ usort($inventory, function ($a, $b) {
                   <!-- Qty + Cart -->
                   <div class="input-group mb-3" style="border:2px solid var(--sage);border-radius:10px;overflow:hidden;">
                     <span class="input-group-text border-0 bg-white text-muted small">Qty</span>
-                    <input type="number" id="qty-<?= $item->id ?>" class="form-control border-0 text-center"
+                    <input type="number" id="qty-<?= $item->inv_id ?>" class="form-control border-0 text-center"
                       value="1" min="1" max="<?= $item->stock ?>" <?= $outOfStock ? 'disabled' : '' ?>>
                   </div>
 
-                  <button class="btn-cart" id="btn-<?= $item->id ?>"
-                    onclick='addToCart(<?= $item->id ?>, <?= json_encode($item->name) ?>, <?= $cleanPrice ?>, <?= json_encode($item->image ?? '') ?>)'
+                  <button class="btn-cart" id="btn-<?= $item->inv_id ?>"
+                    onclick='addToCart(<?= $item->inv_id ?>, <?= json_encode($item->name) ?>, <?= $cleanPrice ?>, <?= json_encode($item->image ?? '') ?>)'
                     <?= ($outOfStock || $userRole === 'admin') ? 'disabled' : '' ?>>
                     <?php if ($userRole === 'admin'): ?>
                       Admin View Only
@@ -508,76 +641,142 @@ usort($inventory, function ($a, $b) {
       <?php endif; ?>
     </div>
   </section>
-  <!-- REVIEWS -->
-  <section class="reviews-section">
-    <div class="container">
 
-      <h2 class="section-title text-center">What Customers Say</h2>
+  
+<!-- REVIEW SECTION -->
+<section class="reviews-section" id="reviews">
+  <div class="container">
+    <h2 class="section-title text-center">Customer Reviews</h2>
+    <p class="text-center text-muted mb-4" style="font-size:.9rem;margin-top:-20px;">What our customers say about our furniture</p>
 
-      <div class="review-card">
-        <div class="review-content">
+    <div class="review-scroll-wrapper px-2">
+      <!-- Left arrow -->
+      <button class="scroll-btn left" onclick="document.getElementById('reviewTrack').scrollBy({left:-290,behavior:'smooth'})">
+        <i class="fas fa-chevron-left"></i>
+      </button>
 
-          <!-- REVIEW ITEM -->
-          <div class="review-item">
-            <div class="review-header">
-              <img src="https://i.pravatar.cc/40?img=1" class="avatar">
-              <div>
-                <b>Maria Santos</b>
-                <div class="stars">★★★★★</div>
-              </div>
+      <div class="review-scroll-track" id="reviewTrack">
+
+        <!-- Card 1 -->
+        <div class="review-item">
+          <div class="review-header">
+            <img src="https://i.pravatar.cc/80?img=1" class="avatar" alt="Angela Cruz">
+            <div>
+              <div style="font-weight:700;color:#fff;font-size:.9rem;">Angela Cruz</div>
+              <div style="font-size:.72rem;color:var(--sage);opacity:.85;">Verified Buyer</div>
             </div>
-            <p>Very satisfied with the quality and overall design.</p>
           </div>
-
-          <div class="review-item">
-            <div class="review-header">
-              <img src="https://i.pravatar.cc/40?img=2" class="avatar">
-              <div>
-                <b>John Cruz</b>
-                <div class="stars">★★★★☆</div>
-              </div>
-            </div>
-            <p>It completely upgraded the look of my living room.</p>
-          </div>
-
-          <div class="review-item">
-            <div class="review-header">
-              <img src="https://i.pravatar.cc/40?img=3" class="avatar">
-              <div>
-                <b>Ana Reyes</b>
-                <div class="stars">★★★★★</div>
-              </div>
-            </div>
-            <p>Simple, modern, and elegant design — exactly what I wanted.</p>
-          </div>
-
-          <div class="review-item">
-            <div class="review-header">
-              <img src="https://i.pravatar.cc/40?img=4" class="avatar">
-              <div>
-                <b>Chris Tan</b>
-                <div class="stars">★★★★★</div>
-              </div>
-            </div>
-            <p>Great quality and very comfortable. Worth the price.</p>
-          </div>
-
-          <div class="review-item">
-            <div class="review-header">
-              <img src="https://i.pravatar.cc/40?img=5" class="avatar">
-              <div>
-                <b>Mae Abiera</b>
-                <div class="stars">★★★★☆</div>
-              </div>
-            </div>
-            <p>The furniture feels premium and fits perfectly in my home interior.</p>
-          </div>
-
+          <div class="stars mb-2" style="color:#f5c842;">★★★★★</div>
+          <p style="font-size:.88rem;color:var(--sage);line-height:1.6;margin:0;">
+            The sofa exceeded my expectations. Very comfortable, elegant, and perfect for our living room.
+          </p>
         </div>
+
+        <!-- Card 2 -->
+        <div class="review-item">
+          <div class="review-header">
+            <img src="https://i.pravatar.cc/80?img=5" class="avatar" alt="Michael Reyes">
+            <div>
+              <div style="font-weight:700;color:#fff;font-size:.9rem;">Michael Reyes</div>
+              <div style="font-size:.72rem;color:var(--sage);opacity:.85;">Verified Buyer</div>
+            </div>
+          </div>
+          <div class="stars mb-2" style="color:#f5c842;">★★★★★</div>
+          <p style="font-size:.88rem;color:var(--sage);line-height:1.6;margin:0;">
+            Excellent quality and very fast delivery. The furniture looks premium and modern.
+          </p>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="review-item">
+          <div class="review-header">
+            <img src="https://i.pravatar.cc/80?img=8" class="avatar" alt="Sophia Lim">
+            <div>
+              <div style="font-weight:700;color:#fff;font-size:.9rem;">Sophia Lim</div>
+              <div style="font-size:.72rem;color:var(--sage);opacity:.85;">Verified Buyer</div>
+            </div>
+          </div>
+          <div class="stars mb-2" style="color:#f5c842;">★★★★★</div>
+          <p style="font-size:.88rem;color:var(--sage);line-height:1.6;margin:0;">
+            Very durable materials and beautiful finish. Definitely worth the purchase.
+          </p>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="review-item">
+          <div class="review-header">
+            <img src="https://i.pravatar.cc/80?img=12" class="avatar" alt="Daniel Garcia">
+            <div>
+              <div style="font-weight:700;color:#fff;font-size:.9rem;">Daniel Garcia</div>
+              <div style="font-size:.72rem;color:var(--sage);opacity:.85;">Verified Buyer</div>
+            </div>
+          </div>
+          <div class="stars mb-2" style="color:#f5c842;">★★★★☆</div>
+          <p style="font-size:.88rem;color:var(--sage);line-height:1.6;margin:0;">
+            Smooth transaction and secure packaging. Customer support was very responsive.
+          </p>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="review-item">
+          <div class="review-header">
+            <img src="https://i.pravatar.cc/80?img=15" class="avatar" alt="Patricia Santos">
+            <div>
+              <div style="font-weight:700;color:#fff;font-size:.9rem;">Patricia Santos</div>
+              <div style="font-size:.72rem;color:var(--sage);opacity:.85;">Verified Buyer</div>
+            </div>
+          </div>
+          <div class="stars mb-2" style="color:#f5c842;">★★★★★</div>
+          <p style="font-size:.88rem;color:var(--sage);line-height:1.6;margin:0;">
+            The design looks luxurious and matches our interior perfectly. Love it!
+          </p>
+        </div>
+
+        <!-- Card 6 -->
+        <div class="review-item">
+          <div class="review-header">
+            <img src="https://i.pravatar.cc/80?img=20" class="avatar" alt="Ramon Torres">
+            <div>
+              <div style="font-weight:700;color:#fff;font-size:.9rem;">Ramon Torres</div>
+              <div style="font-size:.72rem;color:var(--sage);opacity:.85;">Verified Buyer</div>
+            </div>
+          </div>
+          <div class="stars mb-2" style="color:#f5c842;">★★★★★</div>
+          <p style="font-size:.88rem;color:var(--sage);line-height:1.6;margin:0;">
+            Built to last and beautifully crafted. The whole family loves the new set!
+          </p>
+        </div>
+
       </div>
 
+      <!-- Right arrow -->
+      <button class="scroll-btn right" onclick="document.getElementById('reviewTrack').scrollBy({left:290,behavior:'smooth'})">
+        <i class="fas fa-chevron-right"></i>
+      </button>
     </div>
-  </section>
+  </div>
+</section>
+
+<script>
+  // Drag-to-scroll for review track
+  (function () {
+    const track = document.getElementById('reviewTrack');
+    if (!track) return;
+    let isDown = false, startX, scrollLeft;
+    track.addEventListener('mousedown', e => {
+      isDown = true; track.classList.add('dragging');
+      startX = e.pageX - track.offsetLeft; scrollLeft = track.scrollLeft;
+    });
+    track.addEventListener('mouseleave', () => { isDown = false; track.classList.remove('dragging'); });
+    track.addEventListener('mouseup',    () => { isDown = false; track.classList.remove('dragging'); });
+    track.addEventListener('mousemove',  e => {
+      if (!isDown) return; e.preventDefault();
+      const x = e.pageX - track.offsetLeft;
+      track.scrollLeft = scrollLeft - (x - startX) * 1.4;
+    });
+  })();
+</script>
+
 
   <!-- CONTACT -->
   <section class="section" id="about">
@@ -587,11 +786,22 @@ usort($inventory, function ($a, $b) {
         <div class="col-md-6">
           <div class="contact-card">
             <h5 class="fw-bold mb-4" style="font-family:'Playfair Display',serif;color:var(--green);">Message Us</h5>
-            <div class="input-box"><input type="text" placeholder=" "><label>Full Name</label></div>
-            <div class="input-box"><input type="email" placeholder=" "><label>Email Address</label></div>
-            <div class="input-box"><input type="text" placeholder=" "><label>Subject</label></div>
-            <div class="input-box"><textarea placeholder=" "></textarea><label>Your Message</label></div>
-            <button class="btn w-100 fw-bold text-white rounded-pill py-2" style="background:var(--green);">Send Message</button>
+            <?php if ($contactSuccess): ?>
+            <div style="background:#dcfce7;color:#166534;border-radius:12px;padding:14px 18px;margin-bottom:18px;font-weight:600;font-size:.9rem;">
+              <i class="fas fa-check-circle me-2"></i>Message sent! We'll get back to you soon.
+            </div>
+            <?php elseif ($contactError): ?>
+            <div style="background:#fee2e2;color:#b91c1c;border-radius:12px;padding:14px 18px;margin-bottom:18px;font-weight:600;font-size:.9rem;">
+              <i class="fas fa-exclamation-circle me-2"></i><?= htmlspecialchars($contactError) ?>
+            </div>
+            <?php endif; ?>
+            <form method="POST" action="website.php#about">
+              <div class="input-box"><input type="text" name="c_name" placeholder=" " value="<?= htmlspecialchars($_POST['c_name'] ?? ($userName ?? '')) ?>" required><label>Full Name</label></div>
+              <div class="input-box"><input type="email" name="c_email" placeholder=" " value="<?= htmlspecialchars($_POST['c_email'] ?? ($userEmail ?? '')) ?>" required><label>Email Address</label></div>
+              <div class="input-box"><input type="text" name="c_subject" placeholder=" " value="<?= htmlspecialchars($_POST['c_subject'] ?? '') ?>"><label>Subject</label></div>
+              <div class="input-box"><textarea name="c_message" placeholder=" " required><?= htmlspecialchars($_POST['c_message'] ?? '') ?></textarea><label>Your Message</label></div>
+              <button type="submit" name="send_message" class="btn w-100 fw-bold text-white rounded-pill py-2" style="background:var(--green);">Send Message</button>
+            </form>
           </div>
         </div>
         <div class="col-md-6">
@@ -607,7 +817,7 @@ usort($inventory, function ($a, $b) {
             </div>
             <div class="mb-4">
               <p class="text-uppercase small text-muted mb-1" style="letter-spacing:2px;font-size:.72rem;">Email Us</p>
-              <p class="mb-0">zafirah@gmail.com</p>
+              <p class="mb-0">zythera@gmail.com</p>
             </div>
             <div>
               <p class="text-uppercase small text-muted mb-2" style="letter-spacing:2px;font-size:.72rem;">Follow Us</p>
@@ -624,13 +834,13 @@ usort($inventory, function ($a, $b) {
   </section>
 
   <footer class="footer">
-    <img src="pci/Group_15.svg" class="footer-logo">
-    <div class="brand">ZAFIRAH</div>
+    <img src="pci/Group_15.png" class="footer-logo">
+    <div class="brand">ZYTHERA</div>
   </footer>
   <!-- ── CART SLIDE-OUT PANEL — hidden for admin ── -->
   <?php if ($userRole !== 'admin'): ?>
   <div id="cartPanel" style="
-  position:fixed;top:0;right:-420px;width:400px;max-width:95vw;height:100vh;
+  position:fixed;top:0;right:-110vw;width:min(400px,100vw);height:100vh;
   background:#fff;z-index:10000;box-shadow:-8px 0 40px rgba(0,0,0,.18);
   display:flex;flex-direction:column;transition:right .35s cubic-bezier(.4,0,.2,1);
   border-radius:20px 0 0 20px;overflow:hidden;">
@@ -671,14 +881,14 @@ usort($inventory, function ($a, $b) {
       $initSubtotal = 0;
       // Build a stock lookup from session inventory
       $invStock = [];
-      foreach ($_SESSION['inventory'] ?? [] as $inv) {
-        $invStock[(int)$inv->id] = (int)$inv->stock;
+      foreach ($_SESSION['inventory'] ?? [] as $invId => $inv) {
+        $invStock[(int)$invId] = (int)$inv->stock;
       }
       if ($userEmail && !empty($_SESSION['cart'][$userEmail])):
         foreach ($_SESSION['cart'][$userEmail] as $ci):
           $ciPrice  = (float)($ci['price'] ?? 0);
           $ciQty    = (int)($ci['qty'] ?? 1);
-          $ciId     = (int)($ci['id'] ?? 0);
+          $ciId     = (int)($ci['inv_id'] ?? 0);
           $ciTotal  = $ciPrice * $ciQty;
           $ciStock  = $invStock[$ciId] ?? 99;
           $initSubtotal += $ciTotal;
@@ -755,10 +965,34 @@ usort($inventory, function ($a, $b) {
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // ── Cart state seeded from PHP session ───────────────────────
-    let cartItemsJS = <?= json_encode(array_values($_SESSION['cart'][$userEmail] ?? [])) ?>;
-    // Stock map from PHP inventory
-    const stockMap = <?= json_encode(array_map(fn($i) => (int)$i->stock, $_SESSION['inventory'] ?? [])) ?>;
+    // ── Cart state seeded from PHP session + live DB via fetch ──
+    let cartItemsJS = <?= json_encode(array_values(array_map(function($i) {
+      return ['inv_id' => (int)($i['inv_id'] ?? 0), 'name' => $i['name'] ?? '', 'price' => (float)($i['price'] ?? 0), 'qty' => (int)($i['qty'] ?? 1), 'image' => $i['image'] ?? ''];
+    }, $_SESSION['cart'][$userEmail] ?? []))) ?>;
+    // Stock map from PHP inventory (inv_id => stock)
+    const stockMap = <?= json_encode(array_combine(
+      array_keys($_SESSION['inventory'] ?? []),
+      array_map(fn($i) => (int)$i->stock, $_SESSION['inventory'] ?? [])
+    )) ?>;
+
+    // On page load, always sync cart from DB so badge is accurate
+    (function syncCartOnLoad() {
+      <?php if ($userEmail && $userRole !== 'admin'): ?>
+      fetch('getcart.php', { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.cart) {
+            cartItemsJS = data.cart;
+            const badge = document.getElementById('cart-badge');
+            if (badge) {
+              badge.textContent = data.total_items;
+              badge.style.display = data.total_items > 0 ? '' : 'none';
+            }
+            renderCart();
+          }
+        }).catch(() => {});
+      <?php endif; ?>
+    })();
 
     // ── Open / Close cart panel ───────────────────────────────────
     function openCart() {
@@ -768,7 +1002,7 @@ usort($inventory, function ($a, $b) {
     }
 
     function closeCart() {
-      document.getElementById('cartPanel').style.right = '-420px';
+      document.getElementById('cartPanel').style.right = '-110vw';
       document.getElementById('cartBackdrop').style.display = 'none';
       document.body.style.overflow = '';
     }
@@ -795,8 +1029,8 @@ usort($inventory, function ($a, $b) {
           </div>`;
         if (footer)  footer.style.display  = 'none';
         if (countEl) countEl.textContent   = 'Your cart is empty';
-        const badge = document.getElementById('cart-badge');
-        if (badge) badge.textContent = '0';
+      const badge = document.getElementById('cart-badge');
+      if (badge) { badge.textContent = '0'; badge.style.display = 'none'; }
         return;
       }
 
@@ -805,7 +1039,7 @@ usort($inventory, function ($a, $b) {
         const price     = Number(item.price) || 0;
         const qty       = Number(item.qty)   || 1;
         const lineTotal = price * qty;
-        const stock     = stockMap[item.id] ?? 99;
+        const stock     = stockMap[item.inv_id] ?? 99;
         subtotal  += lineTotal;
         totalQty  += qty;
         const imgSrc = item.image || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=60&h=60&fit=crop';
@@ -835,14 +1069,14 @@ usort($inventory, function ($a, $b) {
             </div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
               <div style="display:flex;align-items:center;border:1.5px solid #d4e4d4;border-radius:8px;overflow:hidden;">
-                <button onclick="cartQty(${item.id},'minus')"
+                <button onclick="cartQty(${item.inv_id},'minus')"
                   style="width:30px;height:30px;border:none;background:#d4e4d4;color:#2d5a2d;font-weight:700;font-size:1rem;cursor:pointer;line-height:1;">−</button>
-                <span id="panel-qty-${item.id}"
+                <span id="panel-qty-${item.inv_id}"
                   style="width:34px;text-align:center;font-weight:700;font-size:.88rem;color:#1a2e1a;">${qty}</span>
-                <button onclick="cartQty(${item.id},'plus')"
+                <button onclick="cartQty(${item.inv_id},'plus')"
                   style="width:30px;height:30px;border:none;background:#d4e4d4;color:#2d5a2d;font-weight:700;font-size:1rem;cursor:pointer;line-height:1;">+</button>
               </div>
-              <button onclick="cartQty(${item.id},'remove')"
+              <button onclick="cartQty(${item.inv_id},'remove')"
                 style="background:none;border:none;color:#dc2626;font-size:.78rem;font-weight:600;cursor:pointer;padding:4px 8px;border-radius:6px;transition:.15s;"
                 onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">
                 <i class="fas fa-trash-alt" style="margin-right:4px;"></i>Remove
@@ -858,14 +1092,14 @@ usort($inventory, function ($a, $b) {
         countEl.textContent = totalQty === 1 ? '1 item in cart' : totalQty + ' items in cart';
       }
       const badge = document.getElementById('cart-badge');
-      if (badge) badge.textContent = totalQty;
+      if (badge) { badge.textContent = totalQty; badge.style.display = totalQty > 0 ? '' : 'none'; }
     }
 
     // ── Qty stepper in cart sidebar (calls profile.php POST via fetch) ──
     function cartQty(itemId, action) {
       // Client-side stock cap before even hitting server
       if (action === 'plus') {
-        const item = cartItemsJS.find(i => Number(i.id) === Number(itemId));
+        const item = cartItemsJS.find(i => Number(i.inv_id) === Number(itemId));
         const max  = stockMap[itemId] ?? 9999;
         if (item && Number(item.qty) >= max) {
           showToast('Maximum stock (' + max + ') already in cart.', 'error');
@@ -881,9 +1115,9 @@ usort($inventory, function ($a, $b) {
       }).then(r => {
         if (!r.ok) return;
         if (action === 'remove') {
-          cartItemsJS = cartItemsJS.filter(i => Number(i.id) !== Number(itemId));
+          cartItemsJS = cartItemsJS.filter(i => Number(i.inv_id) !== Number(itemId));
         } else {
-          const item = cartItemsJS.find(i => Number(i.id) === Number(itemId));
+          const item = cartItemsJS.find(i => Number(i.inv_id) === Number(itemId));
           if (item) {
             const max = stockMap[itemId] ?? 9999;
             if (action === 'plus')  item.qty = Math.min(max, Number(item.qty) + 1);
@@ -896,17 +1130,17 @@ usort($inventory, function ($a, $b) {
 
     // ── Add item to local JS state then re-render ─────────────────
     function updateCartPanel(newItem) {
-      const existing = cartItemsJS.find(i => Number(i.id) === Number(newItem.id));
+      const existing = cartItemsJS.find(i => Number(i.inv_id) === Number(newItem.inv_id));
       if (existing) {
         existing.qty = Number(existing.qty) + Number(newItem.qty);
         if (!existing.image && newItem.image) existing.image = newItem.image;
       } else {
         cartItemsJS.push({
-          id:    newItem.id,
-          name:  newItem.name,
-          price: Number(newItem.price),
-          qty:   Number(newItem.qty),
-          image: newItem.image || ''
+          inv_id: newItem.inv_id,
+          name:   newItem.name,
+          price:  Number(newItem.price),
+          qty:    Number(newItem.qty),
+          image:  newItem.image || ''
         });
       }
       renderCart();
@@ -969,7 +1203,7 @@ usort($inventory, function ($a, $b) {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
           },
-          body: 'id=' + encodeURIComponent(id) +
+          body: 'inv_id=' + encodeURIComponent(id) +
             '&name=' + encodeURIComponent(name) +
             '&price=' + encodeURIComponent(price) +
             '&qty=' + encodeURIComponent(qty) +
@@ -991,9 +1225,15 @@ usort($inventory, function ($a, $b) {
           }
 
           if (data.success) {
-            if (data.cart) cartItemsJS = data.cart;
+            // Update full cart state from server response
+            if (data.cart) {
+              cartItemsJS = data.cart;
+            }
             const badge = document.getElementById('cart-badge');
-            if (badge) badge.textContent = data.total_items;
+            if (badge) {
+              badge.textContent = data.total_items;
+              badge.style.display = data.total_items > 0 ? '' : 'none';
+            }
             renderCart();
             showToast('✓ ' + name + ' added to cart!');
           } else if (data.redirect) {
