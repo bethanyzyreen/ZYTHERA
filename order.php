@@ -24,55 +24,43 @@ if (!$dbUser) {
     exit;
 }
 
-header('Location: profile.php');
-exit;
-
-$reviewErrors = [];
-$reviewSuccess = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['review_order_id'])) {
-    $reviewOrderId = trim($_POST['review_order_id'] ?? '');
-    $ratingValue   = $_POST['rating'] ?? null;
-    $rating        = is_numeric($ratingValue) ? (int)$ratingValue : 0;
-    $comment       = trim($_POST['comment'] ?? '');
-
-    if ($reviewOrderId === '') {
-        $reviewErrors[] = 'Invalid order reference.';
-    }
-    if ($rating < 1 || $rating > 5) {
-        $reviewErrors[] = 'Please select a rating from 1 to 5 stars.';
-    }
-    if ($comment === '') {
-        $reviewErrors[] = 'Please write your review so we can share it with other customers.';
-    }
-
-    if (empty($reviewErrors)) {
-        $checkStmt = $db->prepare("SELECT status FROM orders WHERE order_id = ? AND email = ? LIMIT 1");
-        $checkStmt->execute([$reviewOrderId, $userEmail]);
-        $orderCheck = $checkStmt->fetch();
-
-        if (!$orderCheck) {
-            $reviewErrors[] = 'Order not found.';
-        } elseif (!in_array(strtolower($orderCheck->status), ['delivered', 'completed'], true)) {
-            $reviewErrors[] = 'Reviews are only accepted after your order has been delivered.';
-        } else {
-            saveReviewForOrder($userEmail, $reviewOrderId, $rating, $comment);
-            $reviewSuccess = 'Thanks! Your review has been submitted successfully.';
-        }
-    }
-}
-
-// FIX: Load orders then attach items from order_items table
-$orders = [];
-$oStmt  = $db->prepare("SELECT * FROM orders WHERE email = ? ORDER BY date DESC");
+// FIX: Load all orders with their items properly
+$allOrders = [];
+$oStmt = $db->prepare("SELECT * FROM orders WHERE email = ? ORDER BY date DESC");
 $oStmt->execute([$userEmail]);
 $rawOrders = $oStmt->fetchAll();
 foreach ($rawOrders as $ord) {
-    $iStmt = $db->prepare("SELECT * FROM order_items WHERE ord_no = ?");
+    $iStmt = $db->prepare("SELECT oi.*, inv.image AS image FROM order_items oi LEFT JOIN inventory inv ON inv.inv_id = oi.inv_id WHERE oi.ord_no = ?");
     $iStmt->execute([$ord->ord_no ?? $ord->id ?? 0]);
     $ord->items = $iStmt->fetchAll();
-    $orders[] = $ord;
+    $allOrders[] = $ord;
 }
+
+$orderId       = trim($_GET['order_id'] ?? '');
+$returnTarget  = trim($_GET['return'] ?? '');
+$allowedReturn = in_array($returnTarget, ['profile'], true) ? $returnTarget : '';
+$backUrl       = 'profile.php';
+$backLabel     = 'Back to Profile';
+$selectedOrder = null;
+
+if ($orderId !== '') {
+    foreach ($allOrders as $order) {
+        if (($order->order_id ?? '') === $orderId) {
+            $selectedOrder = $order;
+            break;
+        }
+    }
+    if (!$selectedOrder) {
+        header('Location: profile.php');
+        exit;
+    }
+} else {
+    $selectedOrder = $allOrders[0] ?? null;
+}
+
+$cartItems = loadCartForUser($userEmail);
+$cartCount = 0;
+foreach ($cartItems as $ci) $cartCount += (int)($ci['qty'] ?? 1);
 
 $orderPlacedFlash = '';
 $orderPlacedId    = '';
@@ -80,10 +68,6 @@ if (!empty($_GET['order_placed']) && !empty($_GET['order_id'])) {
     $orderPlacedFlash = 'Your order has been placed successfully!';
     $orderPlacedId    = htmlspecialchars($_GET['order_id']);
 }
-
-$cartItems = loadCartForUser($userEmail);
-$cartCount = 0;
-foreach ($cartItems as $ci) $cartCount += (int)($ci['qty'] ?? 1);
 
 $statusSteps = ['Pending', 'Processing', 'Shipped', 'Delivered'];
 
@@ -97,7 +81,7 @@ function getStepIndex(string $status): int {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ZYTHERA | My Orders</title>
+<title>ZYTHERA | Order Details</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,700&family=Roboto:wght@300;400;500;700&family=Lora:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root{--logo-font:'Playfair Display',serif;--ui-font:'Roboto',sans-serif;--text-font:'Lora',serif}
@@ -126,7 +110,7 @@ function getStepIndex(string $status): int {
     .page-header h2 { font-family: 'Playfair Display', serif; color: var(--deep); margin: 0; }
     .section-label { font-size: .68rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--mid); margin-bottom: 4px; }
 
-    /* ── Section card — white card wrapper (same as profile.php) ── */
+    /* ── Section card — white card wrapper ── */
     .section-card {
         background: #fff;
         border-radius: 16px;
@@ -135,7 +119,7 @@ function getStepIndex(string $status): int {
         box-shadow: 0 2px 12px rgba(0,0,0,.05);
     }
 
-    /* ── Order box — same border card as profile.php ── */
+    /* ── Order box — same border card as profile ── */
     .order-box {
         border: 2px solid var(--sage);
         border-radius: 14px;
@@ -145,7 +129,7 @@ function getStepIndex(string $status): int {
     }
     .order-box:hover { border-color: var(--mid); }
 
-    /* ── Status pills — same as profile.php st-* ── */
+    /* ── Status pills — same as profile st-* ── */
     .order-status {
         display: inline-block;
         font-size: .68rem;
@@ -178,7 +162,7 @@ function getStepIndex(string $status): int {
     /* ── Cancelled bar ── */
     .cancelled-bar { display: flex; align-items: center; gap: 10px; background: #fef2f2; border-radius: 14px; padding: 14px 18px; color: #b91c1c; font-weight: 600; font-size: .88rem; border: 1px solid #fecaca; margin-bottom: 8px; }
 
-    /* ── Totals — same as profile.php totals-row ── */
+    /* ── Totals — same as profile totals-row ── */
     .totals-box { background: var(--cream); border-radius: 14px; padding: 14px 18px; margin-top: 4px; }
     .totals-row { display: flex; justify-content: space-between; font-size: .85rem; color: #777; padding: 3px 0; }
     .totals-row.grand { font-size: 1rem; font-weight: 800; color: var(--green); border-top: 2px solid var(--sage); padding-top: 10px; margin-top: 6px; }
@@ -197,24 +181,24 @@ function getStepIndex(string $status): int {
   <a class="navbar-brand fw-bold" href="website.php">ZYTHERA</a>
   <div class="ms-auto d-flex gap-2 align-items-center">
     <a href="website.php" class="btn btn-sm btn-outline-success rounded-pill">Shop</a>
-    <a href="profile.php" class="btn btn-sm btn-light rounded-pill">My Profile</a>
     <a href="logout.php" class="btn btn-sm btn-danger rounded-pill">Logout</a>
   </div>
 </nav>
 <div style="height:60px;"></div>
 
 <div class="flex-fill">
-<div class="container py-4" style="max-width:780px;">
-
+<div class="container py-4" style="max-width:900px;">
   <div class="page-header">
-    <div class="section-label">ZYTHERA FURNITURE</div>
-    <h2>My Orders
-      <span class="badge rounded-pill ms-2"
-            style="background:var(--mid);color:#fff;font-size:.75rem;font-weight:600;vertical-align:middle;padding:5px 12px;">
-        <?= count($orders) ?>
-      </span>
-    </h2>
-    <p class="text-muted mt-1" style="font-size:.85rem;">Track and view all your past orders.</p>
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+      <div>
+        <div class="section-label">Order Tracking</div>
+        <h2><?php if ($orderId !== ''): ?>Order #<?= htmlspecialchars($orderId) ?><?php else: ?>Latest Order<?php endif; ?></h2>
+        <p class="text-muted mt-1" style="font-size:.85rem;">Track the current status of your order and see delivery information.</p>
+      </div>
+      <a href="<?= htmlspecialchars($backUrl) ?>" class="btn btn-sm btn-outline-secondary rounded-pill">
+        <i class="fas fa-arrow-left me-1"></i> <?= htmlspecialchars($backLabel) ?>
+      </a>
+    </div>
   </div>
 
   <?php if ($orderPlacedFlash): ?>
@@ -231,51 +215,33 @@ function getStepIndex(string $status): int {
   </div>
   <?php endif; ?>
 
-  <?php if (!empty($reviewSuccess)): ?>
-  <div class="alert-success-order" style="
-    background:linear-gradient(135deg,#dcfce7,#bbf7d0);
-    border:2px solid #86efac;border-radius:18px;
-    padding:18px 24px;margin-bottom:24px;
-    color:#14532d;">
-    <?= htmlspecialchars($reviewSuccess) ?>
-  </div>
-  <?php endif; ?>
-
-  <?php if (!empty($reviewErrors)): ?>
-  <div class="alert-errors" style="margin-bottom:24px;">
-    <?php foreach ($reviewErrors as $error): ?>
-      <?= htmlspecialchars($error) ?><br>
-    <?php endforeach; ?>
-  </div>
-  <?php endif; ?>
-
-  <?php if (empty($orders)): ?>
+  <?php if (!$selectedOrder): ?>
   <div class="empty-state">
     <i class="fas fa-box-open"></i>
-    <p class="fw-semibold" style="color:#aaa;">No orders placed yet.</p>
-    <a href="website.php" class="btn btn-sm btn-outline-success rounded-pill mt-2 px-4">Start Shopping</a>
+    <p class="fw-semibold" style="color:#aaa;">Could not find that order.</p>
+    <a href="profile.php" class="btn btn-sm btn-outline-success rounded-pill mt-2 px-4">Back to Profile</a>
   </div>
   <?php else: ?>
 
-  <?php foreach ($orders as $o):
+  <?php
+    $o           = $selectedOrder;
     $oStatus     = $o->status ?? 'Pending';
     $isCancelled = strtolower($oStatus) === 'cancelled';
     $stepIndex   = $isCancelled ? -1 : getStepIndex($oStatus);
-
-    $oItems   = $o->items ?? [];
-    $subtotal = (float)($o->subtotal ?? 0);
-    $shipping = (float)($o->shipping ?? 150);
-    $total    = (float)($o->total ?? ($subtotal + $shipping));
-    $oDate    = $o->date ?? '';
-    $orderId  = $o->order_id ?? '—';
-    $payMethod = $o->pay_method ?? '';
-    $fullName  = $o->full_name ?? '';
-    $address   = $o->address   ?? '';
-    $city      = $o->city      ?? '';
-    $province  = $o->province  ?? '';
-    $zip       = $o->zip       ?? '';
-    $phone     = $o->phone     ?? '';
-    $notes     = $o->notes     ?? '';
+    $oItems      = $o->items ?? [];
+    $subtotal    = (float)($o->subtotal ?? 0);
+    $shipping    = (float)($o->shipping ?? 150);
+    $total       = (float)($o->total ?? ($subtotal + $shipping));
+    $oDate       = $o->date ?? '';
+    $orderId     = $o->order_id ?? '—';
+    $payMethod   = $o->pay_method ?? '';
+    $fullName    = $o->full_name ?? '';
+    $phone       = $o->phone     ?? '';
+    $address     = $o->address   ?? '';
+    $city        = $o->city      ?? '';
+    $province    = $o->province  ?? '';
+    $zip         = $o->zip       ?? '';
+    $notes       = $o->notes     ?? '';
 
     $stClass = match(strtolower($oStatus)) {
       'processing'             => 'st-processing',
@@ -307,12 +273,6 @@ function getStepIndex(string $status): int {
           <small class="text-muted d-block" style="font-size:.7rem;">Status</small>
           <span class="order-status <?= $stClass ?> dyn-status-badge"><?= htmlspecialchars($oStatus) ?></span>
         </div>
-      </div>
-      <div class="d-flex justify-content-end mb-3">
-        <a href="order.php?order_id=<?= urlencode($orderId) ?>"
-           class="btn btn-sm btn-outline-success rounded-pill" style="font-size:.75rem;">
-          <i class="fas fa-eye me-1"></i>View Order Details
-        </a>
       </div>
 
       <!-- Order Status Timeline -->
@@ -356,10 +316,14 @@ function getStepIndex(string $status): int {
           $oiQty   = (int)($oi->qty   ?? 1);
           $oiPrice = (float)($oi->price ?? 0);
           $oiLine  = $oiPrice * $oiQty;
+          $oiImg   = trim((string)($oi->image ?? '')) ?: 'pci/Group_15.png';
         ?>
-        <div class="d-flex align-items-center gap-2 px-3 py-2" style="border-bottom:1px solid var(--sage);">
+        <div class="d-flex align-items-center gap-3 px-3 py-2" style="border-bottom:1px solid var(--sage);">
+          <div style="width:72px;min-width:72px;">
+            <img src="<?= htmlspecialchars($oiImg) ?>" alt="<?= htmlspecialchars($oiName) ?>" style="width:72px;height:72px;object-fit:cover;border-radius:14px;border:1px solid #e5e5e5;background:#fff;">
+          </div>
           <div style="flex:1;min-width:0;">
-            <div style="font-size:.88rem;font-weight:700;color:var(--deep);"><?= htmlspecialchars($oiName) ?></div>
+            <div style="font-size:.88rem;font-weight:700;color:var(--deep);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><?= htmlspecialchars($oiName) ?></div>
             <div style="font-size:.76rem;color:#999;">₱<?= number_format($oiPrice, 2) ?> × <?= $oiQty ?></div>
           </div>
           <span style="font-weight:700;color:var(--green);font-size:.88rem;white-space:nowrap;">₱<?= number_format($oiLine, 2) ?></span>
@@ -374,44 +338,7 @@ function getStepIndex(string $status): int {
         <div class="totals-row grand"><span>Total Paid</span><span>₱<?= number_format($total, 2) ?></span></div>
       </div>
 
-      <?php if (in_array(strtolower($oStatus), ['delivered', 'completed'], true)): ?>
-        <?php if (empty($o->review)): ?>
-        <div class="checkout-card" style="margin-top:22px;padding:18px;">
-          <div class="section-label mb-2">Leave a Review</div>
-          <p style="color:#555;font-size:.9rem;margin-bottom:14px;">Tell other buyers about your experience with this order.</p>
-          <form method="POST" style="display:grid;gap:12px;">
-            <input type="hidden" name="review_order_id" value="<?= htmlspecialchars($orderId) ?>">
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-              <?php for ($star = 1; $star <= 5; $star++): ?>
-                <label style="cursor:pointer;font-size:1.25rem;color:#f5c842;">
-                  <input type="radio" name="rating" value="<?= $star ?>" style="display:none;">
-                  <?= $star <= 5 ? '★' : '☆' ?>
-                </label>
-              <?php endfor; ?>
-            </div>
-            <textarea name="comment" rows="4" style="width:100%;border:2px solid #d4e4d4;border-radius:14px;padding:14px;font-family:'DM Sans',sans-serif;resize:none;" placeholder="Share your thoughts about the furniture delivery and quality..."></textarea>
-            <button type="submit" class="btn-place" style="width:auto;padding:12px 18px;">Submit Review</button>
-          </form>
-        </div>
-        <?php else: ?>
-        <div class="checkout-card" style="margin-top:22px;padding:18px;">
-          <div class="section-label mb-2">Your Review</div>
-          <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;">
-            <div>
-              <img src="<?= !empty($o->review->author_pic) ? htmlspecialchars($o->review->author_pic) : 'https://i.pravatar.cc/80?img=12' ?>" style="width:70px;height:70px;border-radius:18px;object-fit:cover;" alt="<?= htmlspecialchars($o->review->author_name ?: 'Reviewer') ?>">
-            </div>
-            <div style="flex:1;min-width:0;">
-              <div style="font-weight:700;color:var(--deep);margin-bottom:4px;">Thank you for sharing your experience.</div>
-              <div style="font-size:1.25rem;color:#f5c842;margin-bottom:10px;"><?= str_repeat('★', max(1, min(5, (int)$o->review->rating))) ?></div>
-              <p style="margin:0;color:#555;line-height:1.6;"><?= nl2br(htmlspecialchars($o->review->comment)) ?></p>
-              <div style="margin-top:10px;font-size:.82rem;color:#777;">Submitted on <?= htmlspecialchars(date('F d, Y', strtotime($o->review->created_at))) ?></div>
-            </div>
-          </div>
-        </div>
-        <?php endif; ?>
-      <?php endif; ?>
-
-      <!-- Customer Details — same layout as profile.php and order.php -->
+      <!-- Customer Details -->
       <div class="p-3" style="background:var(--cream);border-radius:10px;">
         <small class="d-block mb-1" style="font-size:.68rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--mid);">Customer Details</small>
         <div class="fw-bold" style="color:var(--deep);"><?= htmlspecialchars($fullName ?: ($dbUser->name ?? '')) ?></div>
@@ -425,9 +352,7 @@ function getStepIndex(string $status): int {
     </div>
   </div><!-- /section-card -->
 
-  <?php endforeach; ?>
   <?php endif; ?>
-
 </div>
 </div>
 
@@ -438,7 +363,7 @@ function getStepIndex(string $status): int {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-function pollOrderStatuses() {
+function pollOrderStatus() {
   fetch('get_order.php', { credentials: 'same-origin' })
     .then(r => r.json())
     .then(data => {
@@ -447,7 +372,7 @@ function pollOrderStatuses() {
         const badge = document.querySelector('[data-order-id="' + o.order_id + '"] .dyn-status-badge');
         if (badge) {
           badge.textContent = o.status;
-          badge.className   = 'order-status dyn-status-badge ' + statusClass(o.status);
+          badge.className = 'status-pill dyn-status-badge ' + statusClass(o.status);
         }
         const msg = document.querySelector('[data-order-id="' + o.order_id + '"] .dyn-status-msg');
         if (msg) msg.textContent = statusMsg(o.status);
@@ -455,8 +380,8 @@ function pollOrderStatuses() {
     }).catch(() => {});
 }
 function statusClass(s) {
-  const m = { pending:'st-pending', processing:'st-processing', shipped:'st-shipped', delivered:'st-delivered', completed:'st-delivered', cancelled:'st-cancelled' };
-  return m[s.toLowerCase()] || 'st-pending';
+  const m = { pending:'sp-pending', processing:'sp-processing', shipped:'sp-shipped', delivered:'sp-delivered', completed:'sp-delivered', cancelled:'sp-cancelled' };
+  return m[s.toLowerCase()] || 'sp-pending';
 }
 function statusMsg(s) {
   const m = {
@@ -469,7 +394,7 @@ function statusMsg(s) {
   };
   return m[s] || 'Your order is being processed.';
 }
-setInterval(pollOrderStatuses, 30000);
+setInterval(pollOrderStatus, 30000);
 </script>
 </body>
 </html>
