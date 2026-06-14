@@ -482,7 +482,7 @@ footer .footer-brand{
         <i class="fas fa-arrow-left me-1"></i> Keep Shopping
       </a>
       <a href="profile.php" class="btn btn-sm btn-light rounded-pill px-3">My Profile</a>
-      <a href="javascript:void(0)" onclick="openLogoutModal()" class="btn btn-sm btn-danger rounded-pill px-3">Logout</a>
+
     </div>
   </div>
 </nav>
