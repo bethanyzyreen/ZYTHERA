@@ -9,9 +9,7 @@ if (empty($_SESSION['logged_in_user'])) {
 $userEmail = $_SESSION['logged_in_user'];
 $db        = getDBConnection();
 
-$uStmt = $db->prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
-$uStmt->execute([$userEmail]);
-$dbUser = $uStmt->fetch();
+$dbUser = findAccountByEmail($userEmail);
 
 if (!$dbUser) {
     foreach (['logged_in_user', 'role', 'login_time', 'session_start'] as $_k) unset($_SESSION[$_k]);
@@ -27,6 +25,7 @@ $user = [
     'created_at'  => $dbUser->created_at ?? '',
 ];
 $userRole = $_SESSION['role'] ?? $user['role'];
+$isAdminAccount = ($userRole === 'admin');
 
 if ($userRole !== 'admin') {
     if (!isset($_SESSION['orders'][$userEmail])) $_SESSION['orders'][$userEmail] = [];
@@ -38,12 +37,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newName = trim($_POST['name'] ?? '');
         $newPass = trim($_POST['password'] ?? '');
         if ($newName === '') $newName = $user['name'];
-        if (!empty($newPass)) {
-            if (strlen($newPass) < 6) die('Password must be at least 6 characters.');
-            $hashed = password_hash($newPass, PASSWORD_DEFAULT);
-            $db->prepare("UPDATE users SET name=?, password=? WHERE email=?")->execute([$newName, $hashed, $userEmail]);
+
+        if ($isAdminAccount) {
+            if (!empty($newPass)) {
+                if (strlen($newPass) < 6) die('Password must be at least 6 characters.');
+                $hashed = password_hash($newPass, PASSWORD_DEFAULT);
+                $db->prepare("UPDATE admins SET admin_fname=?, password=? WHERE email=?")->execute([$newName, $hashed, $userEmail]);
+            } else {
+                $db->prepare("UPDATE admins SET admin_fname=? WHERE email=?")->execute([$newName, $userEmail]);
+            }
         } else {
-            $db->prepare("UPDATE users SET name=? WHERE email=?")->execute([$newName, $userEmail]);
+            $nameParts = splitName($newName);
+            if (!empty($newPass)) {
+                if (strlen($newPass) < 6) die('Password must be at least 6 characters.');
+                $hashed = password_hash($newPass, PASSWORD_DEFAULT);
+                $db->prepare("UPDATE users SET fname=?, mname=?, lname=?, password=? WHERE email=?")
+                   ->execute([$nameParts['fname'], $nameParts['mname'], $nameParts['lname'], $hashed, $userEmail]);
+            } else {
+                $db->prepare("UPDATE users SET fname=?, mname=?, lname=? WHERE email=?")
+                   ->execute([$nameParts['fname'], $nameParts['mname'], $nameParts['lname'], $userEmail]);
+            }
         }
         header('Location: profile.php?updated=1');
         exit;
@@ -59,7 +72,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $newName = uniqid('profile_', true) . '.' . $ext;
                 $target  = 'uploads/profile_pics/' . $newName;
                 if (move_uploaded_file($file['tmp_name'], $target)) {
-                    $db->prepare("UPDATE users SET profile_pic=? WHERE email=?")->execute([$target, $userEmail]);
+                    if ($isAdminAccount) {
+                        $db->prepare("UPDATE admins SET admin_pfp=? WHERE email=?")->execute([$target, $userEmail]);
+                    } else {
+                        $db->prepare("UPDATE users SET user_pfp=? WHERE email=?")->execute([$target, $userEmail]);
+                    }
                     header('Location: profile.php?updated=1');
                     exit;
                 }
@@ -71,7 +88,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($user['profile_pic']) && file_exists($user['profile_pic'])) {
             unlink($user['profile_pic']);
         }
-        $db->prepare("UPDATE users SET profile_pic=NULL WHERE email=?")->execute([$userEmail]);
+        if ($isAdminAccount) {
+            $db->prepare("UPDATE admins SET admin_pfp=NULL WHERE email=?")->execute([$userEmail]);
+        } else {
+            $db->prepare("UPDATE users SET user_pfp=NULL WHERE email=?")->execute([$userEmail]);
+        }
         header('Location: profile.php');
         exit;
     }
@@ -81,24 +102,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // FIX: Load orders with their items properly joined
 $orders = [];
 if ($userRole !== 'admin') {
-    $oStmt = $db->prepare("SELECT * FROM orders WHERE email=? ORDER BY date DESC");
-    $oStmt->execute([$userEmail]);
-    $rawOrders = $oStmt->fetchAll();
-
-    foreach ($rawOrders as $ord) {
-        $iStmt = $db->prepare("SELECT * FROM order_items WHERE ord_no=?");
-        $iStmt->execute([$ord->ord_no ?? $ord->id ?? 0]);
-        $ord->items = $iStmt->fetchAll();
-        $orders[] = $ord;
-    }
+    $orders = loadUserOrders($userEmail);
 }
 
 $pic = $dbUser->profile_pic ?? null;
+// Use DB-stored picture when present; otherwise fall back for admin users only
+if (empty($pic) && (($dbUser->role ?? '') === 'admin')) {
+    $email_l = strtolower($dbUser->email ?? '');
+    if ($email_l === 'zythera@gmail.com') {
+        $pic = 'pci/beti.jpg';
+    } elseif ($email_l === 'admin@gmail.com') {
+        $pic = 'pci/admin.jpg';
+    } elseif ($email_l === 'mei@gmail.com') {
+        $pic = 'pci/mei.jpg';
+    } else {
+        // fallback to name-based heuristics
+        $lname = strtolower($dbUser->name ?? '');
+        if (strpos($lname, 'mei') !== false) $pic = 'pci/mei.jpg';
+        elseif (strpos($lname, 'beti') !== false) $pic = 'pci/beti.jpg';
+        else $pic = null;
+    }
+}
 $_SESSION['profile_pic'][$userEmail] = $pic;
 
 $stockMap = [];
 foreach ($_SESSION['inventory'] ?? [] as $inv) {
-    $stockMap[(int)$inv->inv_id] = (int)$inv->stock;
+    $stockMap[$inv->inv_id] = (int)$inv->stock;
 }
 ?>
 <!DOCTYPE html>
@@ -108,40 +137,17 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ZYTHERA | MY PROFILE</title>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,700&family=Roboto:wght@300;400;500;700&family=Lora:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,700&family=Roboto:wght@300;400;500;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --logo-font: 'Playfair Display', serif;
-            --ui-font: 'Roboto', sans-serif;
-            --text-font: 'Lora', serif
-        }
-
-        body {
-            font-family: var(--ui-font);
-        }
-
-        h1,
-        h2,
-        h3,
-        h4,
-        h5,
-        .navbar-brand,
-        .brand-name,
-        .section-title,
-        .page-header h2,
-        footer .footer-brand {
-            font-family: var(--logo-font);
-        }
-
-        p,
-        small,
-        .caption,
-        .text-muted {
-            font-family: var(--text-font);
-        }
+        :root{--logo-font:'Playfair Display',serif;--ui-font:'Roboto',sans-serif;--text-font:'Merriweather',serif}
+        body{font-family:var(--ui-font);}
+        h1,h2,h3,h4,h5,.navbar-brand,.brand-name,.section-title,.page-header h2,footer .footer-brand{font-family:var(--logo-font);}
+        p,small,.caption,.text-muted{font-family:var(--text-font);}
     </style>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="dark-mode.js"></script>
     <style>
         :root {
             --green: #2d5a2d;
@@ -153,7 +159,7 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
         }
 
         * {
-            font-family: 'DM Sans', sans-serif;
+            font-family: var(--ui-font);
             box-sizing: border-box;
         }
 
@@ -179,7 +185,8 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
             color: var(--green) !important;
             letter-spacing: 4px;
             font-size: 1.5rem;
-        }
+.navbar-brand span { font-family: 'Playfair Display', serif; }
+    }
 
         .profile-card {
             border: none;
@@ -605,19 +612,33 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
             letter-spacing: 4px;
         }
     </style>
+<script>
+/* ZYTHERA dark mode — apply before paint to prevent flash */
+(function(){
+  if(localStorage.getItem('zythera_dark')==='1'){
+    document.documentElement.classList.add('zd');
+    if (document.body) document.body.classList.add('dark');
+    document.documentElement.style.background='#111e11';
+    document.addEventListener('DOMContentLoaded',function(){
+      document.body.classList.add('dark');
+      document.documentElement.style.background='';
+    });
+  }
+})();
+</script>
 </head>
 
 <body>
 
     <nav class="navbar navbar-light px-4 py-2 fixed-top">
-        <a class="navbar-brand fw-bold" href="website.php">ZYTHERA</a>
+        <a class="navbar-brand fw-bold" href="website.php"><span style="font-family:'Playfair Display',serif;color:#1a2e1a;font-weight:700;"> ZYTHERA </span></a>
         <div class="ms-auto d-flex gap-2 align-items-center">
             <?php if ($userRole !== 'admin'): ?>
                 <a href="website.php" class="btn btn-sm btn-outline-success rounded-pill">Shop</a>
             <?php else: ?>
                 <a href="admin.php" class="btn btn-sm btn-dark rounded-pill">Admin Panel</a>
             <?php endif; ?>
-            <a href="logout.php" class="btn btn-sm btn-danger rounded-pill">Logout</a>
+            <a href="javascript:void(0)" onclick="openLogoutModal()" class="btn btn-sm btn-danger rounded-pill">Logout</a>
         </div>
     </nav>
 
@@ -635,11 +656,8 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
             <div class="profile-card">
                 <div class="profile-header">
                     <div class="avatar-ring" onclick="document.getElementById('picInput').click();" title="Click to change photo">
-                        <?php if (!empty($user['profile_pic'])): ?>
-                            <img src="<?= htmlspecialchars($user['profile_pic']) ?>" alt="Profile Photo">
-                        <?php else: ?>
-                            <?= strtoupper(substr($user['name'], 0, 1)) ?>
-                        <?php endif; ?>
+                        <?php $avatarSrc = getAvatarURL($user['profile_pic'] ?? null, $user['email'] ?? null, $user['name'] ?? null, 100); ?>
+                        <img src="<?= htmlspecialchars($avatarSrc) ?>" alt="Profile Photo">
                         <div class="avatar-overlay"><i class="fas fa-camera" style="color:#fff;font-size:1.3rem;"></i></div>
                     </div>
 
@@ -692,69 +710,72 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
                 </div>
             </div>
 
-            <!-- ── ORDER HISTORY ── -->
-            <div class="section-card">
-                <div class="section-title">
-                    <i class="fas fa-receipt" style="color:var(--green);"></i>
-                    Order History
-                    <span class="badge rounded-pill ms-1"
-                        style="background:var(--mid);color:#fff;font-size:.7rem;padding:4px 9px;">
-                        <?= count($orders) ?>
-                    </span>
-                </div>
-
-                <?php if (empty($orders)): ?>
-                    <div class="empty-state">
-                        <i class="fas fa-box-open"></i>
-                        <p>No orders placed yet.</p>
-                        <a href="website.php" class="btn btn-sm btn-outline-success rounded-pill mt-2">Browse Products</a>
+                <?php if ($userRole !== 'admin'): ?>
+                <!-- ── ORDER HISTORY ── -->
+                <div class="section-card">
+                    <div class="section-title">
+                        <i class="fas fa-receipt" style="color:var(--green);"></i>
+                        Order History
+                        <span class="badge rounded-pill ms-1"
+                            style="background:var(--mid);color:#fff;font-size:.7rem;padding:4px 9px;">
+                            <?= count($orders) ?>
+                        </span>
                     </div>
-                <?php else: ?>
-                    <div class="order-list">
-                        <?php foreach ($orders as $o): ?>
-                            <?php
-                            $oStatus  = $o->status ?? 'Pending';
-                            $stCls    = match (strtolower($oStatus)) {
-                                'delivered', 'completed' => 'st-delivered',
-                                'cancelled'              => 'st-cancelled',
-                                'shipped'                => 'st-shipped',
-                                'processing'             => 'st-processing',
-                                default                  => 'st-pending'
-                            };
-                            $oSub      = (float)($o->subtotal ?? 0);
-                            $oShip     = is_numeric($o->shipping ?? null) ? (float)$o->shipping : 150;
-                            $oTotal    = (float)($o->total ?? ($oSub + $oShip));
-                            $oOrderId  = $o->order_id  ?? '—';
-                            $oDate     = $o->date      ?? '';
-                            $itemCount = count($o->items ?? []);
-                            ?>
-                            <a href="order.php?order_id=<?= urlencode($oOrderId) ?>&return=profile" class="order-link" aria-label="View order <?= htmlspecialchars($oOrderId) ?>">
-                                <div class="order-box">
-                                    <div class="order-summary">
-                                        <div class="order-summary-left">
-                                            <div class="order-summary-title">Order #<?= htmlspecialchars($oOrderId) ?></div>
-                                            <div class="order-summary-meta">
-                                                <?= $oDate ? date('M d, Y · h:i A', strtotime($oDate)) : 'No date' ?> · <?= $itemCount ?> item<?= $itemCount === 1 ? '' : 's' ?>
+
+                    <?php if (empty($orders)): ?>
+                        <div class="empty-state">
+                            <i class="fas fa-box-open"></i>
+                            <p>No orders placed yet.</p>
+                            <a href="website.php" class="btn btn-sm btn-outline-success rounded-pill mt-2">Browse Products</a>
+                        </div>
+                    <?php else: ?>
+                        <div class="order-list">
+                            <?php foreach ($orders as $o): ?>
+                                <?php
+                                $oStatus  = $o->status ?? 'Pending';
+                                $stCls    = match (strtolower($oStatus)) {
+                                    'delivered', 'completed' => 'st-delivered',
+                                    'cancelled'              => 'st-cancelled',
+                                    'shipped'                => 'st-shipped',
+                                    'processing'             => 'st-processing',
+                                    default                  => 'st-pending'
+                                };
+                                $oSub      = (float)($o->subtotal ?? 0);
+                                $oShip     = is_numeric($o->shipping ?? null) ? (float)$o->shipping : 150;
+                                $oTotal    = (float)($o->total ?? ($oSub + $oShip));
+                                $oOrderId  = $o->order_id  ?? '—';
+                                $oDate     = $o->date      ?? '';
+                                $itemCount = count($o->items ?? []);
+                                ?>
+                                <a href="order.php?order_id=<?= urlencode($oOrderId) ?>&return=profile" class="order-link" aria-label="View order <?= htmlspecialchars($oOrderId) ?>">
+                                    <div class="order-box">
+                                        <div class="order-summary">
+                                            <div class="order-summary-left">
+                                                <div class="order-summary-title">Order #<?= htmlspecialchars($oOrderId) ?></div>
+                                                <div class="order-summary-meta">
+                                                    <?= $oDate ? date('M d, Y · h:i A', strtotime($oDate)) : 'No date' ?> · <?= $itemCount ?> item<?= $itemCount === 1 ? '' : 's' ?>
+                                                </div>
+                                            </div>
+                                            <div class="order-summary-right">
+                                                <div class="order-total">₱<?= number_format($oTotal, 2) ?></div>
+                                                <span class="order-status <?= $stCls ?>" style="margin-top:6px;display:inline-block;">
+                                                    <?= htmlspecialchars($oStatus) ?>
+                                                </span>
                                             </div>
                                         </div>
-                                        <div class="order-summary-right">
-                                            <div class="order-total">₱<?= number_format($oTotal, 2) ?></div>
-                                            <span class="order-status <?= $stCls ?>" style="margin-top:6px;display:inline-block;">
-                                                <?= htmlspecialchars($oStatus) ?>
-                                            </span>
-                                        </div>
                                     </div>
-                                </div>
-                            </a>
-                        <?php endforeach; ?>
-                    </div>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
                 <?php endif; ?>
-            </div>
         </div>
 
         <footer>
             <img src="pci/Group_15.png" style="width:28px;" alt="Zythera logo">
-            <span class="footer-brand">ZYTHERA</span>
+            <span class="footer-brand"><span style="font-family:'Playfair Display',serif;color:#1a2e1a;font-weight:700;"> ZYTHERA </span></span>
         </footer>
 
         <!-- FIX: Bootstrap JS was missing -->
@@ -891,22 +912,17 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
                         block: 'start'
                     }), 300);
                 }
+
+                function togglePw() {
+                    const input = document.getElementById('pwField');
+                    if (!input) return;
+                    const show = input.type === 'password';
+                    input.type = show ? 'text' : 'password';
+                    const icon = document.querySelector('.fa-eye, .fa-eye-slash');
+                    if (icon) icon.className = show ? 'fas fa-eye-slash' : 'fas fa-eye';
+                }
             </script>
         <?php endif; ?>
-
-        <script>
-            function togglePw() {
-                const field = document.getElementById('pwField');
-                const icon = document.getElementById('pwEye');
-                if (!field) return;
-                const isPassword = field.type === 'password';
-                field.type = isPassword ? 'text' : 'password';
-                if (icon) {
-                    icon.classList.toggle('fa-eye', !isPassword);
-                    icon.classList.toggle('fa-eye-slash', isPassword);
-                }
-            }
-        </script>
 
 </body>
 

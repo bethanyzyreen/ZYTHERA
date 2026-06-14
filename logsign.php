@@ -10,17 +10,7 @@ if (empty($_SESSION['logged_in_user']) && !empty($_COOKIE['zythera_user'])) {
     $cEmail = $_COOKIE['zythera_user'];
     $cRole  = $_COOKIE['zythera_role'] ?? '';
 
-    $db = getDBConnection();
-
-    $stmt = $db->prepare("
-        SELECT * FROM users
-        WHERE email = ?
-        LIMIT 1
-    ");
-
-    $stmt->execute([$cEmail]);
-
-    $checkUser = $stmt->fetch(PDO::FETCH_OBJ);
+    $checkUser = findAccountByEmail($cEmail);
 
     if ($checkUser && $checkUser->role === $cRole) {
 
@@ -55,23 +45,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email    = trim($_POST['email'] ?? '');
     $password = trim($_POST['password'] ?? '');
 
-    $adminEmails = [
-        'zythera@gmail.com',
-        'admin@gmail.com'
-    ];
-
     // ── SIGNUP ────────────────────────────────────────────────
     if (isset($_POST['signup'])) {
 
-        $name = trim($_POST['name'] ?? '');
+        $fname = trim($_POST['fname'] ?? '');
+        $mname = trim($_POST['mname'] ?? '');
+        $lname = trim($_POST['lname'] ?? '');
 
-        $role = in_array($email, $adminEmails, true)
-            ? 'admin'
-            : 'user';
+        if (!$fname || !$lname || !$email || !$password) {
 
-        if (!$name || !$email || !$password) {
-
-            $message = 'Please complete all fields.';
+            $message = 'Please complete all required fields.';
             $msgType = 'error';
 
         } else {
@@ -86,7 +69,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $check->execute([$email]);
 
-            if ($check->fetch()) {
+            $adminCheck = $db->prepare("SELECT email FROM admins WHERE email = ?");
+            $adminCheck->execute([$email]);
+
+            if ($check->fetch() || $adminCheck->fetch()) {
 
                 $message = 'Email already registered!';
                 $msgType = 'error';
@@ -98,22 +84,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     PASSWORD_DEFAULT
                 );
 
+
+                $newUserId = generateCustomId('U');
                 $stmt = $db->prepare("
                     INSERT INTO users
                     (
+                        user_id,
+                        fname,
+                        mname,
+                        lname,
                         email,
-                        name,
-                        password,
-                        role
+                        password
                     )
-                    VALUES (?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?)
                 ");
 
                 $stmt->execute([
+                    $newUserId,
+                    $fname,
+                    $mname !== '' ? $mname : null,
+                    $lname,
                     $email,
-                    $name,
-                    $hashedPassword,
-                    $role
+                    $hashedPassword
                 ]);
 
                 $message = 'Account created successfully!';
@@ -127,18 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         try {
 
-            $db = getDBConnection();
-
-            $stmt = $db->prepare("
-                SELECT *
-                FROM users
-                WHERE email = ?
-                LIMIT 1
-            ");
-
-            $stmt->execute([$email]);
-
-            $user = $stmt->fetch(PDO::FETCH_OBJ);
+            $user = findAccountByEmail($email);
 
             if (!$user) {
 
@@ -199,11 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     header(
                         'Location: ' .
                         (
-                            in_array(
-                                $user->email,
-                                $adminEmails,
-                                true
-                            )
+                            $user->role === 'admin'
                             ? 'admin.php'
                             : 'website.php'
                         )
@@ -229,19 +206,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ── AUTO REDIRECT IF LOGGED IN ───────────────────────────────
 if (!empty($_SESSION['logged_in_user'])) {
 
-    $adminEmails2 = [
-        'zythera@gmail.com',
-        'admin@gmail.com'
-    ];
+    $loggedInRole = $_SESSION['role'] ?? (isAdminEmail($_SESSION['logged_in_user']) ? 'admin' : 'user');
 
     header(
         'Location: ' .
         (
-            in_array(
-                $_SESSION['logged_in_user'],
-                $adminEmails2,
-                true
-            )
+            $loggedInRole === 'admin'
             ? 'admin.php'
             : 'website.php'
         )
@@ -255,10 +225,10 @@ if (!empty($_SESSION['logged_in_user'])) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ZYTHERA</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,700&family=Roboto:wght@300;400;500;700&family=Lora:wght@400;500;700&display=swap" rel="stylesheet">
+<title> ZYTHERA </title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,700&family=Roboto:wght@300;400;500;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
 <style>
-  :root{--logo-font:'Playfair Display',serif;--ui-font:'Roboto',sans-serif;--text-font:'Lora',serif}
+  :root{--logo-font:'Playfair Display',serif;--ui-font:'Roboto',sans-serif;--text-font:'Merriweather',serif}
   body{font-family:var(--ui-font);}
   h1,h2,h3,h4,h5,.navbar-brand{font-family:var(--logo-font)}
   p,small{font-family:var(--text-font)}
@@ -274,7 +244,7 @@ if (!empty($_SESSION['logged_in_user'])) {
 body{
   min-height:100vh;
   background:linear-gradient(135deg,#c8dcc8 0%,#f5f2ec 60%,#e8d8c8 100%);
-  font-family:'DM Sans',sans-serif;
+  font-family: var(--ui-font);
   display:flex;flex-direction:column;
   align-items:center;justify-content:center;
   padding:80px 16px 32px;
@@ -338,7 +308,7 @@ body{
 }
 .tabs button{
   flex:1;padding:11px;border:none;border-radius:50px;
-  background:transparent;font-family:'DM Sans',sans-serif;
+  background:transparent;font-family: var(--ui-font);
   font-size:.9rem;font-weight:600;color:var(--green);
   cursor:pointer;transition:.25s;
 }
@@ -357,7 +327,7 @@ body{
   width:100%;padding:15px 14px 7px;
   background:var(--sage);border:2px solid transparent;
   border-radius:var(--radius);outline:none;
-  font-family:'DM Sans',sans-serif;font-size:.95rem;
+  font-family: var(--ui-font);font-size:.95rem;
   color:var(--deep);transition:.2s;appearance:none;
 }
 .field input:focus,.field select:focus{
@@ -379,7 +349,7 @@ body{
 /* ── Submit ── */
 .btn-submit{
   width:100%;padding:14px;border:none;border-radius:50px;
-  font-family:'DM Sans',sans-serif;font-size:1rem;font-weight:700;
+  font-family: var(--ui-font);font-size:1rem;font-weight:700;
   cursor:pointer;transition:.25s;margin-top:4px;letter-spacing:.5px;
 }
 .btn-submit.user {background:var(--green);color:#fff;}
@@ -487,14 +457,46 @@ body.dark .btn-submit.user{
 body.dark .btn-submit.user:hover{background:#1a3a1a;}
 body.dark .btn-submit.admin{background:#0f1f0f;color:#fff;}
 </style>
+<link rel="stylesheet" href="dark-mode.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="dark-mode.js"></script>
+<script>
+/* ZYTHERA dark mode — apply before paint to prevent flash */
+(function(){
+  var dark = localStorage.getItem('zythera_dark') === '1';
+  if (dark) {
+    document.documentElement.classList.add('zd');
+    document.documentElement.style.background = '#111e11';
+    if (document.body) document.body.classList.add('dark');
+    document.addEventListener('DOMContentLoaded', function(){
+      document.body.classList.add('dark');
+      document.documentElement.style.background = '';
+      var btn = document.getElementById('darkToggle');
+      if (btn) btn.textContent = 'Light Mode';
+    });
+  } else {
+    document.documentElement.style.background = '#ffffff';
+  }
+})();
+function toggleDark(){
+  var dark = !document.body.classList.contains('dark');
+  document.documentElement.classList.toggle('zd', dark);
+  document.body.classList.toggle('dark', dark);
+  localStorage.setItem('zythera_dark', dark ? '1' : '0');
+  var age = dark ? 60*60*24*365 : 0;
+  document.cookie = 'zythera_dark=' + (dark ? '1' : '0') + ';path=/;max-age=' + age;
+  document.documentElement.style.background = dark ? '#111e11' : '#ffffff';
+  if (!dark) document.documentElement.style.background = '';
+  var btn = document.getElementById('darkToggle');
+  if(btn) btn.textContent = dark ? 'Light Mode' : 'Dark Mode';
+}
+</script>
 </head>
 <body>
 
 <!-- TOP BAR -->
 <div class="top-bar">
   <a href="website.php" class="top-btn">Back to Home</a>
-  <button class="top-btn" id="darkToggle" onclick="toggleDark()">Dark Mode</button>
 </div>
 
 <!-- Session timer progress bar -->
@@ -511,7 +513,7 @@ document.addEventListener('DOMContentLoaded',()=>showToast(<?= json_encode($mess
 
 <!-- CARD -->
 <div class="card">
-  <div class="brand">ZYTHERA</div>
+  <div class="brand"><span style="font-family:'Playfair Display',serif;color:#1a2e1a;font-weight:700;"> ZYTHERA </span></div>
   <p class="tagline">Furniture crafted for lives that deserve beauty.</p>
 
   <!-- TABS -->
@@ -543,8 +545,18 @@ document.addEventListener('DOMContentLoaded',()=>showToast(<?= json_encode($mess
   <form id="signupForm" class="form" method="POST" novalidate>
 
     <div class="field">
-      <input type="text" name="name" placeholder=" " required autocomplete="name">
-      <label>Full Name</label>
+      <input type="text" name="fname" placeholder=" " required autocomplete="given-name">
+      <label>First Name</label>
+    </div>
+
+    <div class="field">
+      <input type="text" name="mname" placeholder=" " autocomplete="additional-name">
+      <label>Middle Name (optional)</label>
+    </div>
+
+    <div class="field">
+      <input type="text" name="lname" placeholder=" " required autocomplete="family-name">
+      <label>Last Name</label>
     </div>
 
     <div class="field">
@@ -567,7 +579,7 @@ document.addEventListener('DOMContentLoaded',()=>showToast(<?= json_encode($mess
 
 <div class="footer-brand">
   <img src="pci/Group_15.png" class="footer-logo">
-  <span class="brand-name">ZYTHERA</span>
+  <span class="brand-name"><span style="font-family:'Playfair Display',serif;color:#1a2e1a;font-weight:700;"> ZYTHERA </span></span>
 </div>
 
 <script>
@@ -579,20 +591,7 @@ function togglePw(inputId, btn) {
   icon.className = show ? 'fas fa-eye-slash' : 'fas fa-eye';
 }
 
-// ── Dark mode toggle with persistence ────────────────────────
-function toggleDark() {
-  const isDark = document.body.classList.toggle('dark');
-  localStorage.setItem('zythera_dark', isDark ? '1' : '0');
-  document.getElementById('darkToggle').textContent = isDark ? 'Light Mode' : 'Dark Mode';
-}
-// Apply on load
-(function() {
-  if (localStorage.getItem('zythera_dark') === '1') {
-    document.body.classList.add('dark');
-    const btn = document.getElementById('darkToggle');
-    if (btn) btn.textContent = 'Light Mode';
-  }
-})();
+// Dark mode handled by inline script above
 function switchTab(tab) {
   document.getElementById('loginTab').classList.toggle('active',  tab==='login');
   document.getElementById('signupTab').classList.toggle('active', tab==='signup');
