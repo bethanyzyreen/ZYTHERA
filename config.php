@@ -357,39 +357,39 @@ function loadCarts(): array {
  * Find an existing address for this user or insert a new one.
  * Returns the custom address_id string, e.g. 'ADR-ZY001'.
  */
-function findOrCreateAddress(string $userId, string $phone, string $address, string $city, string $province, string $zip): string {
+function findOrCreateAddress(string $userId, string $phone, string $address, string $barangay, string $city, string $province, string $zip): string {
     $db = getDBConnection();
 
     $stmt = $db->prepare("
         SELECT address_id FROM user_address
         WHERE user_id = ? AND phone_num = ? AND st_address = ?
-          AND city_municipality = ? AND province = ? AND zip_code = ?
+          AND COALESCE(barangay,'') = ? AND city_municipality = ? AND province = ? AND zip_code = ?
         LIMIT 1
     ");
-    $stmt->execute([$userId, $phone, $address, $city, $province, $zip]);
+    $stmt->execute([$userId, $phone, $address, $barangay, $city, $province, $zip]);
     $row = $stmt->fetch();
     if ($row) return (string)$row->address_id;
 
     $newId = generateCustomId('ADR');
     $ins   = $db->prepare("
-        INSERT INTO user_address (address_id, user_id, phone_num, st_address, city_municipality, province, zip_code)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO user_address (address_id, user_id, phone_num, st_address, barangay, city_municipality, province, zip_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ");
-    $ins->execute([$newId, $userId, $phone, $address, $city, $province, $zip]);
+    $ins->execute([$newId, $userId, $phone, $address, $barangay !== '' ? $barangay : null, $city, $province, $zip]);
     return $newId;
 }
 
 /**
  * Create a new payment record and return the custom payment_id string.
  */
-function createPayment(string $method, string $status = 'pending'): string {
+function createPayment(string $method, string $status = 'pending', ?string $refNo = null, ?string $proofPath = null): string {
     $db    = getDBConnection();
     $newId = generateCustomId('PAY');
     $ins   = $db->prepare("
-        INSERT INTO payment (payment_id, payment_method, payment_status, payment_date)
-        VALUES (?, ?, ?, NOW())
+        INSERT INTO payment (payment_id, payment_method, payment_status, payment_date, reference_no, pay_proof)
+        VALUES (?, ?, ?, NOW(), ?, ?)
     ");
-    $ins->execute([$newId, $method, $status]);
+    $ins->execute([$newId, $method, $status, $refNo, $proofPath]);
     return $newId;
 }
 
@@ -413,6 +413,7 @@ function saveOrderToDB(string $email, array $order): void {
             $userId,
             $shippingInfo['phone']    ?? '',
             $shippingInfo['address']  ?? '',
+            $shippingInfo['barangay'] ?? '',
             $shippingInfo['city']     ?? '',
             $shippingInfo['province'] ?? '',
             $shippingInfo['zip']      ?? ''
@@ -626,9 +627,11 @@ const ORDER_SELECT_SQL = "
         pay.payment_method                     AS pay_method,
         pay.payment_status                     AS pay_status,
         pay.reference_no                       AS pay_reference,
+        pay.pay_proof                          AS pay_proof,
         CONCAT_WS(' ', u.fname, NULLIF(u.mname,''), u.lname) AS full_name,
         ua.phone_num                           AS phone,
         ua.st_address                          AS address,
+        ua.barangay                            AS barangay,
         ua.city_municipality                   AS city,
         ua.province                            AS province,
         ua.zip_code                            AS zip,
