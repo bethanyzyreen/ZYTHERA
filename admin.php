@@ -344,6 +344,50 @@ if ($adminRole !== 'admin') {
             top: 0;
             z-index: 100;
         }
+
+        /* ── Sidebar toggle (mobile / tablet) ── */
+        .sidebar-toggle-btn {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            border: 1px solid rgba(0,0,0,.08);
+            background: var(--white);
+            color: var(--deep-green);
+            font-size: 1.05rem;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .sidebar-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.45);
+            z-index: 199;
+        }
+        .sidebar-backdrop.show { display: block; }
+
+        @media (max-width: 991.98px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform .28s ease;
+                width: 260px;
+            }
+            .sidebar.show { transform: translateX(0); }
+            .main-content { margin-left: 0; }
+            .sidebar-toggle-btn { display: inline-flex; }
+            .top-navbar { padding: 0.7rem 1rem; flex-wrap: wrap; row-gap: 10px; }
+            .user-capsule { padding: 4px 4px 4px 12px; }
+            .user-info-text { max-width: 150px; }
+            .user-name { font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        }
+        @media (max-width: 420px) {
+            .user-info-text { display: none; }
+            .user-capsule { padding: 4px; border-radius: 50%; border: none; background: transparent; box-shadow: none !important; }
+        }
+
         body.dark .sidebar-link,
         body.dark .sidebar-link.active,
         body.dark .sidebar-label,
@@ -444,6 +488,11 @@ if ($adminRole !== 'admin') {
             border-bottom-color: rgba(255,255,255,.08) !important;
         }
         body.dark #sectionTitle { color: #a8d5a8 !important; }
+        body.dark .sidebar-toggle-btn {
+            background: #1e3a1e !important;
+            border-color: rgba(255,255,255,.1) !important;
+            color: #a8d5a8 !important;
+        }
 
         /* User capsule */
         body.dark .user-capsule {
@@ -506,12 +555,7 @@ if ($adminRole !== 'admin') {
         body.dark .table-bordered { border-color: #2e4a2e !important; }
         body.dark .table-bordered td,
         body.dark .table-bordered th { border-color: #2e4a2e !important; }
-        /* Messages table */
-        body.dark #section-messages .table td,
-        body.dark #section-messages .table th { color: #e8f5e8 !important; background-color: #1a2a1a !important; }
-        body.dark #section-messages .table thead tr th { background-color: #1e3a1e !important; color: #c8e8c8 !important; }
-        body.dark #section-messages .table td.fw-semibold { color: #ffffff !important; }
-        body.dark #section-messages .table td[style*="color:#999"] { color: #8ab88a !important; }
+
 
         /* Search bar */
         body.dark .search-wrap input {
@@ -813,6 +857,9 @@ if ($adminRole !== 'admin') {
     </div>
 </div>
 
+<!-- ── SIDEBAR BACKDROP (mobile) ── -->
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar()"></div>
+
 <!-- ── SIDEBAR ── -->
 <div class="sidebar" id="adminSidebar">
     <div class="sidebar-brand">
@@ -851,16 +898,9 @@ if ($adminRole !== 'admin') {
         <button class="sidebar-link" onclick="showSection('reviews')" id="nav-reviews">
             <i class="fas fa-star"></i> Reviews
         </button>
-        <button class="sidebar-link" onclick="showSection('messages')" id="nav-messages">
-            <i class="fas fa-envelope"></i> Messages
-        </button>
-
         <div class="sidebar-label" style="margin-top:8px;">Store</div>
         <a href="website.php" class="sidebar-link">
             <i class="fas fa-store"></i> View Store
-        </a>
-        <a href="profile.php" class="sidebar-link">
-            <i class="fas fa-user-circle"></i> My Profile
         </a>
     </nav>
 
@@ -885,6 +925,7 @@ if ($adminRole !== 'admin') {
 
 <nav class="top-navbar d-flex justify-content-between align-items-center">
     <div class="d-flex align-items-center gap-3">
+        <button class="sidebar-toggle-btn" onclick="toggleSidebar()" aria-label="Toggle menu" type="button"><i class="fas fa-bars"></i></button>
         <h6 class="mb-0 fw-bold" style="color:var(--deep-green);font-family:'Playfair Display',serif;font-size:1.1rem;letter-spacing:.5px;">
             <span id="sectionTitle">Product Inventory</span>
         </h6>
@@ -1528,57 +1569,6 @@ if ($searchQuery !== '') {
 </div>
 </div><!-- /section-reviews -->
 
-<!-- ── SECTION: Messages ── -->
-<div id="section-messages" style="display:none;">
-<?php
-$contactMsgs = [];
-try {
-    $db2 = getDBConnection();
-    $contactStmt = $db2->query("SELECT * FROM messages ORDER BY created_at DESC");
-    $contactMsgs = $contactStmt->fetchAll();
-} catch (Exception $e) {
-    // Tables may not exist yet.
-}
-?>
-<div class="card p-4 mt-3">
-    <div class="d-flex align-items-center gap-3 mb-4">
-        <div style="width:44px;height:44px;background:var(--sage-light);border-radius:12px;display:flex;align-items:center;justify-content:center;">
-            <i class="fas fa-envelope" style="color:var(--deep-green);font-size:1.1rem;"></i>
-        </div>
-        <div>
-            <h5 class="fw-bold mb-0" style="color:var(--deep-green);">Customer Messages</h5>
-        </div>
-    </div>
-    <?php if (empty($contactMsgs)): ?>
-    <div class="text-center py-5 text-muted">
-        <i class="fas fa-envelope-open fa-3x mb-3 opacity-25"></i>
-        <p>No messages received yet.</p>
-    </div>
-    <?php else: ?>
-    <div class="table-responsive">
-    <table class="table align-middle" style="font-size:.88rem;">
-        <thead>
-            <tr>
-                <th>Name</th><th>Email</th><th>Subject</th><th>Message</th><th>Date</th>
-            </tr>
-        </thead>
-        <tbody>
-        <?php foreach ($contactMsgs as $m): ?>
-        <tr>
-            <td class="fw-semibold"><?= htmlspecialchars($m->full_name ?? '') ?></td>
-            <td><?= htmlspecialchars($m->email ?? '') ?></td>
-            <td><?= htmlspecialchars($m->subject ?? '') ?></td>
-            <td style="max-width:260px;white-space:pre-wrap;word-break:break-word;"><?= htmlspecialchars($m->message ?? '') ?></td>
-            <td style="white-space:nowrap;color:#999;"><?= htmlspecialchars($m->created_at ?? '') ?></td>
-        </tr>
-        <?php endforeach; ?>
-        </tbody>
-    </table>
-    </div>
-    <?php endif; ?>
-</div>
-</div><!-- /section-messages -->
-
 </div><!-- /container -->
 </div><!-- /main-content -->
 
@@ -1601,12 +1591,11 @@ const sectionTitles = {
     analytics:  'Analytics Dashboard',
     orders:     'Order History',
     users:      'User Summary',
-    reviews:    'User Reviews',
-    messages:   'Customer Messages',
+    reviews:    'User Reviews'
 };
 
 function showSection(name) {
-    ['inventory','addproduct','analytics','orders','users','reviews','messages'].forEach(s => {
+    ['inventory','addproduct','analytics','orders','users','reviews'].forEach(s => {
         document.getElementById('section-' + s).style.display = s === name ? '' : 'none';
     });
     document.querySelectorAll('.sidebar-link').forEach(el => el.classList.remove('active'));
@@ -1615,7 +1604,20 @@ function showSection(name) {
     const titleEl = document.getElementById('sectionTitle');
     if (titleEl) titleEl.textContent = sectionTitles[name] || '';
     if (name === 'addproduct') resetForm();
+    // Auto-close the off-canvas sidebar after choosing a section on mobile/tablet
+    if (window.innerWidth <= 991.98) closeSidebar();
 }
+
+// ── Mobile sidebar toggle ──────────────────────────────────────
+function toggleSidebar() {
+    document.getElementById('adminSidebar').classList.toggle('show');
+    document.getElementById('sidebarBackdrop').classList.toggle('show');
+}
+function closeSidebar() {
+    document.getElementById('adminSidebar').classList.remove('show');
+    document.getElementById('sidebarBackdrop').classList.remove('show');
+}
+
 
 // ── Edit product: switch to Add Product section then fill form ─
 function editProduct(id, name, size, color, price, desc, stock, category, image) {

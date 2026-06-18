@@ -71,10 +71,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $check->execute([$email]);
 
-            $adminCheck = $db->prepare("SELECT email FROM admins WHERE email = ?");
-            $adminCheck->execute([$email]);
+            $adminExists = isAdminEmail($email);
+            if (!$adminExists && tableExists('admins')) {
+                $adminCheck = $db->prepare("SELECT email FROM admins WHERE email = ?");
+                $adminCheck->execute([$email]);
+                $adminExists = (bool)$adminCheck->fetch();
+            }
 
-            if ($check->fetch() || $adminCheck->fetch()) {
+            if ($check->fetch() || $adminExists) {
 
                 $message = 'Email already registered!';
                 $msgType = 'error';
@@ -686,6 +690,7 @@ function toggleDark(){
   if(btn) btn.textContent = dark ? 'Light Mode' : 'Dark Mode';
 }
 </script>
+<link rel="stylesheet" href="responsive.css">
 </head>
 <body>
 

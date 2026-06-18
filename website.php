@@ -1119,6 +1119,7 @@ body.dark .review-edit-modal textarea:focus {
       }
     })();
   </script>
+  <link rel="stylesheet" href="responsive.css">
 </head>
 
 <body>
@@ -1136,6 +1137,9 @@ body.dark .review-edit-modal textarea:focus {
           <a href="#products" class="nav-link fw-semibold" style="color:var(--green)!important;">Products</a>
           <a href="about.php" class="nav-link fw-semibold" style="color:var(--green)!important;">About</a>
           <a href="website.php#contact" class="nav-link fw-semibold" style="color:var(--green)!important;">Contact Us</a>
+          <?php if ($userEmail && $userRole !== 'admin'): ?>
+            <a href="profile.php?tab=orders" class="nav-link fw-semibold" style="color:var(--green)!important;">My Orders</a>
+          <?php endif; ?>
           <?php if ($userEmail): ?>
             <div class="nav-user-capsule">
               <div class="text-end d-none d-md-block">
@@ -1150,7 +1154,9 @@ body.dark .review-edit-modal textarea:focus {
                 ?>
                 <img src="<?= htmlspecialchars($navPic) ?>" class="rounded-circle" width="32" height="32" style="cursor:pointer;border:2px solid rgba(45,90,45,.2);object-fit:cover;" data-bs-toggle="dropdown" alt="<?= htmlspecialchars($userName) ?>">
                 <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2" style="border-radius:14px;min-width:190px;">
+                  <?php if ($userRole !== 'admin'): ?>
                   <li><a class="dropdown-item py-2" href="profile.php"><i class="fas fa-user me-2 text-muted" style="font-size:.85rem;"></i>My Profile</a></li>
+                  <?php endif; ?>
                   <?php if ($userRole === 'admin'): ?>
                     <li><a class="dropdown-item py-2" href="admin.php"><i class="fas fa-user-shield me-2 text-muted" style="font-size:.85rem;"></i>Admin Panel</a></li>
                   <?php endif; ?>
@@ -1162,6 +1168,10 @@ body.dark .review-edit-modal textarea:focus {
 
             <!-- Cart icon — hidden for admin -->
             <?php if ($userRole !== 'admin'): ?>
+              <a href="profile.php" class="text-decoration-none d-flex align-items-center justify-content-center" title="Settings" aria-label="Profile settings"
+                style="width:36px;height:36px;border-radius:50%;background:#f0f7f0;border:1px solid rgba(45,90,45,.16);color:var(--green);transition:.2s;">
+                <i class="fas fa-gear" style="font-size:1rem;"></i>
+              </a>
               <a href="javascript:void(0)" onclick="openCart()" class="position-relative text-decoration-none d-flex align-items-center" title="Cart" style="color:var(--green);">
                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="9" cy="21" r="1" />
@@ -1487,7 +1497,7 @@ body.dark .review-edit-modal textarea:focus {
       <div class="row g-4 justify-content-center">
         <div class="col-lg-8">
           <div class="contact-card">
-            <h5 class="fw-bold mb-5" style="font-family:'Playfair Display',serif;color:var(--green);font-size:1.5rem;">Message Us</h5>
+            <h5 class="fw-bold mb-5" style="font-family:'Playfair Display',serif;color:var(--green);font-size:1.5rem;">Contact Us</h5>
             <?php if ($contactSuccess): ?>
             <?php elseif ($contactError): ?>
               <div style="background:#fee2e2;color:#b91c1c;border-radius:12px;padding:14px 18px;margin-bottom:18px;font-weight:600;font-size:.9rem;">
@@ -1594,8 +1604,11 @@ body.dark .review-edit-modal textarea:focus {
             <small id="cartItemCount" style="opacity:.75;font-size:.75rem;">
               <?php
               $initCount = 0;
-              if ($userEmail && !empty($_SESSION['cart'][$userEmail]))
+              $initDistinctCount = 0;
+              if ($userEmail && !empty($_SESSION['cart'][$userEmail])) {
+                $initDistinctCount = count($_SESSION['cart'][$userEmail]);
                 foreach ($_SESSION['cart'][$userEmail] as $ci) $initCount += (int)($ci['qty'] ?? 1);
+              }
               echo $initCount === 0 ? 'Your cart is empty' : $initCount . ' item' . ($initCount === 1 ? '' : 's') . ' in cart';
               ?>
             </small>
@@ -1607,6 +1620,19 @@ body.dark .review-edit-modal textarea:focus {
             </svg>
           </button>
         </div>
+      </div>
+
+      <!-- Select-All bar — only appears once there are 2+ distinct products in the cart.
+           Styled to match the nav's utility-icon look (soft green pill, same border/colors
+           as the Settings button) so it reads as a toolbar action, not just another row. -->
+      <div id="cartSelectAllBar" style="display:<?= $initDistinctCount >= 2 ? 'flex' : 'none' ?>;align-items:center;justify-content:space-between;
+        padding:10px 18px;background:#f0f7f0;border-bottom:1px solid rgba(45,90,45,.16);flex-shrink:0;">
+        <label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:.82rem;font-weight:700;color:var(--green);margin:0;">
+          <input type="checkbox" id="cartSelectAllCheckbox" onchange="toggleSelectAll(this.checked)"
+            style="width:17px;height:17px;accent-color:var(--green);cursor:pointer;">
+          Select All
+        </label>
+        <span id="cartSelectAllCount" style="font-size:.74rem;color:#5a8a5a;font-weight:600;"></span>
       </div>
 
       <!-- Items list -->
@@ -1632,6 +1658,10 @@ body.dark .review-edit-modal textarea:focus {
             <div style="background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:10px;
             box-shadow:0 2px 10px rgba(0,0,0,.06);">
               <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+                <input type="checkbox" class="cart-select-checkbox" value="<?= htmlspecialchars($ciId) ?>"
+                  onchange="toggleCartSelection('<?= htmlspecialchars($ciId) ?>', this.checked)"
+                  style="width:18px;height:18px;accent-color:var(--green);flex-shrink:0;cursor:pointer;"
+                  aria-label="Select <?= htmlspecialchars($ci['name'] ?? 'item') ?> for checkout">
                 <img src="<?= htmlspecialchars($ci['image'] ?? '') ?>" alt=""
                   style="width:54px;height:54px;object-fit:cover;border-radius:10px;flex-shrink:0;background:#d4e4d4;"
                   onerror="this.src='https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=60&h=60&fit=crop'">
@@ -1684,7 +1714,10 @@ body.dark .review-edit-modal textarea:focus {
           <span style="font-weight:600;color:#666;font-size:.85rem;">SUBTOTAL</span>
           <span id="cartSubtotal" style="font-weight:800;color:#2d5a2d;font-size:1.15rem;">₱<?= number_format($initSubtotal) ?></span>
         </div>
-        <a href="checkout.php" style="display:block;background:var(--green);color:#fff;text-align:center;padding:14px;border-radius:50px;text-decoration:none;font-weight:700;font-size:.95rem;transition:.2s;">
+        <div id="cartSelectionError" style="display:none;color:#b91c1c;background:#fee2e2;border-radius:10px;padding:8px 10px;font-size:.78rem;font-weight:700;margin-bottom:10px;text-align:center;">
+          Please select products first.
+        </div>
+        <a href="checkout.php" id="checkoutSelectedBtn" onclick="return goToSelectedCheckout(event)" style="display:block;background:var(--green);color:#fff;text-align:center;padding:14px;border-radius:50px;text-decoration:none;font-weight:700;font-size:.95rem;transition:.2s;">
           Checkout Now
         </a>
       </div>
@@ -1742,6 +1775,7 @@ body.dark .review-edit-modal textarea:focus {
     let cartItemsJS = <?= json_encode(array_values(array_map(function ($i) {
                         return ['inv_id' => (string)($i['inv_id'] ?? ''), 'name' => $i['name'] ?? '', 'price' => (float)($i['price'] ?? 0), 'qty' => (int)($i['qty'] ?? 1), 'image' => $i['image'] ?? ''];
                       }, $_SESSION['cart'][$userEmail] ?? []))) ?>;
+    let selectedCartIds = new Set(JSON.parse(localStorage.getItem('zythera_selected_cart') || '[]').map(String));
     // Stock map from PHP inventory (inv_id => stock)
     const stockMap = <?= json_encode(array_combine(
                         array_keys($_SESSION['inventory'] ?? []),
@@ -1782,6 +1816,88 @@ body.dark .review-edit-modal textarea:focus {
       document.body.style.overflow = '';
     }
 
+    function syncSelectedCartIds() {
+      const currentIds = new Set(cartItemsJS.map(item => String(item.inv_id)));
+      selectedCartIds = new Set([...selectedCartIds].filter(id => currentIds.has(id)));
+      localStorage.setItem('zythera_selected_cart', JSON.stringify([...selectedCartIds]));
+    }
+
+    function toggleCartSelection(itemId, checked) {
+      itemId = String(itemId);
+      if (checked) selectedCartIds.add(itemId);
+      else selectedCartIds.delete(itemId);
+      syncSelectedCartIds();
+      updateSelectAllUI();
+      const err = document.getElementById('cartSelectionError');
+      if (err && selectedCartIds.size > 0) err.style.display = 'none';
+    }
+
+    // ── Select-All toolbar: check/uncheck every item at once ──────
+    function toggleSelectAll(checked) {
+      document.querySelectorAll('.cart-select-checkbox').forEach(cb => {
+        cb.checked = checked;
+      });
+      cartItemsJS.forEach(item => {
+        const id = String(item.inv_id);
+        if (checked) selectedCartIds.add(id);
+        else selectedCartIds.delete(id);
+      });
+      syncSelectedCartIds();
+      updateSelectAllUI();
+      const err = document.getElementById('cartSelectionError');
+      if (err && selectedCartIds.size > 0) err.style.display = 'none';
+    }
+
+    // Keeps the Select-All checkbox (checked/indeterminate), its visibility,
+    // and the "x of y selected" label in sync with the current selection.
+    function updateSelectAllUI() {
+      const bar = document.getElementById('cartSelectAllBar');
+      const cb = document.getElementById('cartSelectAllCheckbox');
+      const countEl = document.getElementById('cartSelectAllCount');
+      if (!bar || !cb) return;
+
+      const total = cartItemsJS.length;
+      if (total < 2) {
+        bar.style.display = 'none';
+        return;
+      }
+      bar.style.display = 'flex';
+
+      const selectedCount = cartItemsJS.filter(i => selectedCartIds.has(String(i.inv_id))).length;
+      cb.checked = total > 0 && selectedCount === total;
+      cb.indeterminate = selectedCount > 0 && selectedCount < total;
+      if (countEl) countEl.textContent = selectedCount + ' of ' + total + ' selected';
+    }
+
+    function goToSelectedCheckout(event) {
+      syncSelectedCartIds();
+      if (selectedCartIds.size === 0) {
+        if (event) event.preventDefault();
+        const err = document.getElementById('cartSelectionError');
+        if (err) {
+          err.textContent = 'Please select products first.';
+          err.style.display = 'block';
+        }
+        openCart();
+        return false;
+      }
+      const selected = encodeURIComponent([...selectedCartIds].join(','));
+      window.location.href = 'checkout.php?selected=' + selected;
+      if (event) event.preventDefault();
+      return false;
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      if (new URLSearchParams(window.location.search).get('cart_error') === 'select_items') {
+        const err = document.getElementById('cartSelectionError');
+        if (err) {
+          err.textContent = 'Please select products first.';
+          err.style.display = 'block';
+        }
+        openCart();
+      }
+    });
+
     // ── Re-render cart panel items + subtotal + header count ──────
     function renderCart() {
       const container = document.getElementById('cartItems');
@@ -1792,6 +1908,8 @@ body.dark .review-edit-modal textarea:focus {
       let subtotal = 0,
         totalQty = 0,
         distinctCount = cartItemsJS.length;
+
+      syncSelectedCartIds();
 
       if (cartItemsJS.length === 0) {
         container.innerHTML = `
@@ -1811,6 +1929,7 @@ body.dark .review-edit-modal textarea:focus {
           badge.textContent = '0';
           badge.style.display = 'none';
         }
+        updateSelectAllUI();
         return;
       }
 
@@ -1823,6 +1942,8 @@ body.dark .review-edit-modal textarea:focus {
         subtotal += lineTotal;
         totalQty += qty;
         const imgSrc = item.image || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=60&h=60&fit=crop';
+        const itemId = String(item.inv_id);
+        const checked = selectedCartIds.has(itemId) ? 'checked' : '';
 
         const stockLabel = stock === 0 ? 'Out of Stock' :
           stock <= 5 ? 'Low stock: ' + stock + ' left' :
@@ -1833,6 +1954,10 @@ body.dark .review-edit-modal textarea:focus {
           <div style="background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:10px;
             box-shadow:0 2px 10px rgba(0,0,0,.06);">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+              <input type="checkbox" class="cart-select-checkbox" value="${escHtml(itemId)}" ${checked}
+                onchange="toggleCartSelection('${escHtml(itemId)}', this.checked)"
+                style="width:18px;height:18px;accent-color:var(--green);flex-shrink:0;cursor:pointer;"
+                aria-label="Select ${escHtml(String(item.name || 'item'))} for checkout">
               <img src="${escHtml(imgSrc)}" alt=""
                 style="width:54px;height:54px;object-fit:cover;border-radius:10px;flex-shrink:0;background:#d4e4d4;"
                 onerror="this.src='https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=60&h=60&fit=crop'">
@@ -1876,6 +2001,7 @@ body.dark .review-edit-modal textarea:focus {
         badge.textContent = distinctCount;
         badge.style.display = distinctCount > 0 ? '' : 'none';
       }
+      updateSelectAllUI();
     }
 
     // ── Qty stepper in cart sidebar → update_cart.php ────────────

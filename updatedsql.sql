@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS users (
     email        VARCHAR(100) NOT NULL UNIQUE,
     password     VARCHAR(255) NOT NULL,
     user_pfp     VARCHAR(255),
+    phone_num    VARCHAR(20),
+    birthday     DATE,
     date_created DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id)
 ) ENGINE=InnoDB;
@@ -84,12 +86,14 @@ CREATE TABLE IF NOT EXISTS admins (
 CREATE TABLE IF NOT EXISTS user_address (
     address_id        VARCHAR(20)  NOT NULL,
     user_id           VARCHAR(20)  NOT NULL,
+    address_label     VARCHAR(20) NOT NULL DEFAULT 'Home',
     phone_num         VARCHAR(20) NOT NULL,
     province          VARCHAR(100) NOT NULL,
     city_municipality VARCHAR(100) NOT NULL,
     barangay          VARCHAR(100) NOT NULL,
     st_address        VARCHAR(255) NOT NULL,
     zip_code          VARCHAR(10) NOT NULL,
+    is_default        TINYINT(1) NOT NULL DEFAULT 0,
     PRIMARY KEY (address_id),
     CONSTRAINT fk_ua_user FOREIGN KEY (user_id) REFERENCES users (user_id)
         ON UPDATE CASCADE ON DELETE CASCADE
@@ -254,3 +258,13 @@ INSERT INTO product_inv (prod_id, category_id, prod_name, prod_desc, prod_size, 
 ALTER TABLE payment
   ADD COLUMN IF NOT EXISTS pay_proof VARCHAR(255) DEFAULT NULL;
 
+UPDATE product_inv SET prod_color = 'Blue' WHERE prod_name = 'Blue Accent Chair';
+UPDATE product_inv SET prod_color = 'Gray' WHERE prod_name = 'Industrial Gray Sectional Sofa';
+UPDATE product_inv SET prod_color = 'Beige' WHERE prod_name = 'Beige Upholstered Dining Chairs';
+UPDATE product_inv SET prod_color = 'Cream' WHERE prod_name = 'Curved Cream Dining Chairs';
+UPDATE product_inv SET prod_color = 'Taupe' WHERE prod_name = 'Classic Tufted Sofa';
+UPDATE product_inv SET prod_color = 'Taupe' WHERE prod_name = 'Taupe Dining Chairs';
+UPDATE product_inv SET prod_color = 'White' WHERE prod_name = 'Modern White Armchair';
+UPDATE product_inv SET prod_color = 'Light Gray' WHERE prod_name = 'Light Gray Sectional Sofa';
+UPDATE product_inv SET prod_color = 'Beige' WHERE prod_name = 'Classic Dining Chair Set';
+UPDATE product_inv SET prod_color = 'Gray' WHERE prod_name = 'Gray Metal Frame Sofa Set';
