@@ -265,850 +265,118 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ZYTHERA | MY PROFILE</title>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,700&family=Roboto:wght@300;400;500;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
-    <style>
-        :root{--logo-font:'Playfair Display',serif;--ui-font:'Roboto',sans-serif;--text-font:'Merriweather',serif}
-        body{font-family:var(--ui-font);}
-        h1,h2,h3,h4,h5,.navbar-brand,.brand-name,.section-title,.page-header h2,footer .footer-brand{font-family:var(--logo-font);}
-        p,small,.caption,.text-muted{font-family:var(--text-font);}
-    </style>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="dark-mode.css">
-    <script src="dark-mode.js"></script>
-    <style>
-        :root {
-            --green: #2d5a2d;
-            --sage: #d4e4d4;
-            --cream: #f5f2ec;
-            --deep: #1a2e1a;
-            --mid: #7aab7a;
-            --terra: #bc8a7b;
-        }
-
-        * {
-            font-family: var(--ui-font);
-            box-sizing: border-box;
-        }
-
-        body {
-            background: var(--cream);
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-            margin: 0;
-        }
-
-        .page-wrapper {
-            flex: 1;
-        }
-
-        .navbar {
-            background: #fff;
-            box-shadow: 0 1px 12px rgba(0, 0, 0, .07);
-        }
-
-        .navbar-brand {
-            font-family: 'Playfair Display', serif;
-            color: var(--green) !important;
-            letter-spacing: 4px;
-            font-size: 1.5rem;
-.navbar-brand span { font-family: 'Playfair Display', serif; }
-    }
-
-        .nav-link {
-            position: relative;
-            color: var(--green) !important;
-            font-size: .85rem;
-            padding: .35rem .55rem !important;
-            text-decoration: none;
-        }
-
-        .nav-link::after {
-            content: "";
-            position: absolute;
-            left: .55rem;
-            right: .55rem;
-            bottom: 0;
-            height: 2px;
-            background: var(--green);
-            border-radius: 2px;
-            transform: scaleX(0);
-            transition: transform .2s ease;
-        }
-
-        .nav-link:hover::after {
-            transform: scaleX(1);
-        }
-
-        .nav-user-capsule {
-            display: flex;
-            align-items: center;
-            background: #fff;
-            border-radius: 50px;
-            padding: 6px 12px 6px 14px;
-            gap: 8px;
-            border: 1px solid rgba(45,90,45,.12);
-            transition: all .2s ease;
-            box-shadow: 0 2px 8px rgba(0,0,0,.04);
-        }
-
-        .nav-user-capsule:hover {
-            border-color: rgba(45,90,45,.25);
-            box-shadow: 0 4px 12px rgba(0,0,0,.08);
-        }
-
-        .nav-user-capsule img {
-            border: 2.5px solid rgba(45,90,45,.15);
-            transition: border-color .2s ease;
-        }
-
-        .nav-user-capsule:hover img {
-            border-color: rgba(45,90,45,.3);
-        }
-
-        body.dark .nav-user-capsule {
-            background: #1f2937;
-            border-color: rgba(168,212,168,.15);
-        }
-
-        body.dark .nav-user-capsule:hover {
-            background: #2d3748;
-            border-color: rgba(168,212,168,.3);
-        }
-
-        .profile-card {
-            border: none;
-            border-radius: 20px;
-            box-shadow: 0 6px 28px rgba(0, 0, 0, .08);
-            margin-bottom: 22px;
-            overflow: hidden;
-        }
-
-        .profile-header {
-            background: linear-gradient(135deg, var(--deep), var(--green));
-            color: #fff;
-            padding: 36px;
-            text-align: center;
-        }
-
-        .section-card {
-            background: #fff;
-            border-radius: 16px;
-            padding: 24px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, .05);
-        }
-
-        .section-title {
-            font-family: 'Playfair Display', serif;
-            color: var(--deep);
-            font-size: 1.05rem;
-            margin-bottom: 18px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .avatar-ring {
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, .15);
-            border: 3px solid rgba(255, 255, 255, .5);
-            margin: 0 auto 14px;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2.4rem;
-            font-weight: 700;
-            color: #fff;
-            cursor: pointer;
-            position: relative;
-        }
-
-        .avatar-ring img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .avatar-overlay {
-            position: absolute;
-            inset: 0;
-            background: rgba(0, 0, 0, .42);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transition: .2s;
-            border-radius: 50%;
-        }
-
-        .avatar-ring:hover .avatar-overlay {
-            opacity: 1;
-        }
-
-        .badge-role {
-            display: inline-block;
-            padding: 4px 14px;
-            border-radius: 20px;
-            font-size: .72rem;
-            font-weight: 700;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            margin-top: 6px;
-        }
-
-        .badge-user {
-            background: rgba(255, 255, 255, .2);
-            color: #fff;
-        }
-
-        .badge-admin {
-            background: #fee2e2;
-            color: #b91c1c;
-        }
-
-        .form-control,
-        .form-select {
-            background: var(--sage);
-            border: 2px solid transparent;
-            border-radius: 12px;
-            padding: .75rem 1rem;
-            color: var(--deep);
-            transition: .2s;
-        }
-
-        .form-control:focus,
-        .form-select:focus {
-            border-color: var(--green);
-            background: #fff;
-            box-shadow: none;
-            color: var(--deep);
-        }
-
-        .btn-green {
-            background: var(--green);
-            color: #fff;
-            border: none;
-            border-radius: 50px;
-            padding: .65rem 1.8rem;
-            font-weight: 600;
-            transition: .2s;
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .btn-green:hover {
-            background: var(--deep);
-            color: #fff;
-        }
-
-        .cart-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 14px;
-            background: var(--cream);
-            border-radius: 12px;
-            margin-bottom: 8px;
-            transition: .15s;
-        }
-
-        .cart-item:hover {
-            background: #ede9e0;
-        }
-
-        .cart-thumb {
-            width: 52px;
-            height: 52px;
-            flex-shrink: 0;
-            object-fit: cover;
-            border-radius: 10px;
-            background: var(--sage);
-        }
-
-        .qty-stepper {
-            display: inline-flex;
-            align-items: center;
-            border: 2px solid var(--sage);
-            border-radius: 10px;
-            overflow: hidden;
-            flex-shrink: 0;
-        }
-
-        .qty-stepper button {
-            width: 30px;
-            height: 30px;
-            border: none;
-            background: var(--sage);
-            color: var(--green);
-            font-weight: 700;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: .15s;
-            line-height: 1;
-        }
-
-        .qty-stepper button:hover {
-            background: var(--mid);
-            color: #fff;
-        }
-
-        .qty-stepper button:disabled {
-            opacity: .3;
-            cursor: not-allowed;
-        }
-
-        .qty-stepper .qty-val {
-            width: 34px;
-            text-align: center;
-            font-weight: 700;
-            font-size: .9rem;
-            color: var(--deep);
-            background: #fff;
-        }
-
-        .stock-chip {
-            display: inline-block;
-            font-size: .65rem;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 20px;
-            letter-spacing: .5px;
-        }
-
-        .sc-ok {
-            background: #dcfce7;
-            color: #16a34a;
-        }
-
-        .sc-low {
-            background: #fef9c3;
-            color: #b45309;
-        }
-
-        .sc-out {
-            background: #fee2e2;
-            color: #b91c1c;
-        }
-
-        .totals-box {
-            background: var(--cream);
-            border-radius: 14px;
-            padding: 14px 18px;
-            margin-top: 14px;
-        }
-
-        .totals-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: .85rem;
-            color: #777;
-            padding: 3px 0;
-        }
-
-        .totals-row.grand {
-            font-size: 1rem;
-            font-weight: 800;
-            color: var(--green);
-            border-top: 2px solid var(--sage);
-            padding-top: 10px;
-            margin-top: 6px;
-        }
-
-        .order-box {
-            border: 2px solid var(--sage);
-            border-radius: 14px;
-            padding: 16px;
-            margin-bottom: 14px;
-            transition: .2s ease, transform .2s ease;
-        }
-
-        .order-box:hover {
-            border-color: var(--mid);
-        }
-
-        .order-link {
-            display: block;
-            color: inherit;
-            text-decoration: none;
-        }
-
-        .order-link:hover .order-box {
-            transform: translateY(-1px);
-            box-shadow: 0 14px 30px rgba(0, 0, 0, .08);
-        }
-
-        .order-list {
-            display: grid;
-            gap: 14px;
-        }
-
-        .order-summary {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 16px;
-            min-width: 0;
-        }
-
-        .order-summary-left {
-            min-width: 0;
-        }
-
-        .order-summary-title {
-            font-size: .95rem;
-            font-weight: 700;
-            color: var(--deep);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .order-summary-meta {
-            font-size: .82rem;
-            color: #777;
-            margin-top: 6px;
-        }
-
-        .order-summary-right {
-            text-align: right;
-            min-width: 120px;
-        }
-
-        .order-total {
-            font-size: .95rem;
-            font-weight: 700;
-            color: var(--green);
-        }
-
-        .order-link .order-box {
-            border-color: rgba(212, 212, 212, .7);
-        }
-
-        .order-link:hover .order-box {
-            border-color: var(--mid);
-        }
-
-        .order-status {
-            display: inline-block;
-            font-size: .68rem;
-            font-weight: 700;
-            padding: 4px 12px;
-            border-radius: 20px;
-            letter-spacing: .5px;
-            text-transform: uppercase;
-        }
-
-        .st-pending {
-            background: #fef9c3;
-            color: #b45309;
-        }
-
-        .st-processing {
-            background: #dbeafe;
-            color: #1d4ed8;
-        }
-
-        .st-shipped {
-            background: #e0f2fe;
-            color: #0369a1;
-        }
-
-        .st-completed,
-        .st-delivered {
-            background: #dcfce7;
-            color: #16a34a;
-        }
-
-        .st-cancelled {
-            background: #fee2e2;
-            color: #b91c1c;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 36px 20px;
-            color: #bbb;
-        }
-
-        .empty-state i {
-            font-size: 2.5rem;
-            margin-bottom: 12px;
-            display: block;
-        }
-
-        .empty-state p {
-            font-size: .88rem;
-            margin: 0;
-        }
-
-        .p-toast {
-            position: fixed;
-            bottom: 28px;
-            right: 28px;
-            background: var(--deep);
-            color: #fff;
-            padding: 12px 22px;
-            border-radius: 50px;
-            font-size: .85rem;
-            font-weight: 600;
-            opacity: 0;
-            transform: translateY(12px);
-            transition: .3s;
-            pointer-events: none;
-            z-index: 9999;
-        }
-
-        .p-toast.show {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .p-toast.err {
-            background: #b91c1c;
-        }
-
-        footer {
-            background: #f5f2ec;
-            padding: 22px 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            border-top: 1px solid #e8e4dc;
-        }
-
-        footer .footer-brand {
-            font-family: 'Playfair Display', serif;
-            color: var(--green);
-            font-size: 1rem;
-            letter-spacing: 4px;
-        }
-
-        /* ── TWO-COLUMN LAYOUT ── */
-        .two-col-layout {
-            display: grid;
-            grid-template-columns: 1fr 1.8fr;
-            gap: 24px;
-            align-items: start;
-        }
-
-        .profile-col {
-            position: sticky;
-            top: 72px;
-        }
-
-        .orders-col .section-card {
-            min-height: 500px;
-        }
-
-        .settings-nav {
-            display: grid;
-            gap: 8px;
-        }
-
-        .settings-tab-btn {
-            width: 100%;
-            border: 2px solid transparent;
-            background: var(--cream);
-            color: var(--deep);
-            border-radius: 12px;
-            padding: 12px 14px;
-            text-align: left;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            transition: .18s;
-        }
-
-        .settings-tab-btn:hover,
-        .settings-tab-btn.active {
-            background: var(--sage);
-            border-color: var(--mid);
-            color: var(--green);
-        }
-
-        .settings-pane {
-            display: none;
-        }
-
-        .settings-pane.active {
-            display: block;
-        }
-
-        .address-card {
-            border: 2px solid var(--sage);
-            border-radius: 14px;
-            padding: 16px;
-            margin-bottom: 14px;
-            background: #fff;
-        }
-
-        .address-card.default {
-            border-color: var(--green);
-            background: #f8fdf8;
-        }
-
-        .label-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 4px 10px;
-            border-radius: 999px;
-            background: var(--sage);
-            color: var(--green);
-            font-size: .72rem;
-            font-weight: 800;
-        }
-
-        /* ── ORDER STATUS TABS ── */
-        .order-tabs {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-bottom: 18px;
-            padding-bottom: 14px;
-            border-bottom: 2px solid var(--sage);
-        }
-
-        .order-tab {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 7px 14px;
-            border-radius: 50px;
-            border: 2px solid var(--sage);
-            background: #fff;
-            color: #888;
-            font-size: .78rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all .18s;
-            white-space: nowrap;
-        }
-
-        .order-tab:hover {
-            border-color: var(--mid);
-            color: var(--green);
-            background: var(--sage);
-        }
-
-        .order-tab.active {
-            background: var(--green);
-            border-color: var(--green);
-            color: #fff;
-        }
-
-        .tab-count {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(255,255,255,.25);
-            color: inherit;
-            border-radius: 50px;
-            font-size: .66rem;
-            font-weight: 700;
-            min-width: 18px;
-            height: 18px;
-            padding: 0 5px;
-        }
-
-        .order-tab:not(.active) .tab-count {
-            background: var(--sage);
-            color: var(--green);
-        }
-
-        /* ── LOGOUT CONFIRMATION MODAL ── */
-        .logout-modal-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,.6);
-            z-index: 10000;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(3px);
-        }
-        .logout-modal-overlay.active { display: flex; }
-
-        .logout-modal {
-            background: #fff;
-            border-radius: 20px;
-            padding: 32px 28px;
-            width: min(420px, calc(100vw - 32px));
-            box-shadow: 0 20px 60px rgba(0,0,0,.3);
-            text-align: center;
-            animation: logoutSlideDown .3s ease-out;
-        }
-
-        @keyframes logoutSlideDown {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .logout-modal h2 {
-            font-family: 'Playfair Display', serif;
-            color: var(--deep);
-            font-size: 1.3rem;
-            margin: 0 0 12px 0;
-            font-weight: 700;
-        }
-
-        .logout-modal p {
-            color: #666;
-            font-size: .95rem;
-            margin: 0 0 24px 0;
-            line-height: 1.5;
-        }
-
-        body.dark .logout-modal { background: #1f2937; }
-        body.dark .logout-modal h2 { color: #a8d4a8; }
-        body.dark .logout-modal p { color: #cbd5e1; }
-        body.dark .logout-cancel-btn { background: #2d3748; color: #cbd5e1; }
-        body.dark .logout-cancel-btn:hover { background: #374151; }
-
-        .logout-modal-buttons {
-            display: flex;
-            gap: 12px;
-            justify-content: center;
-        }
-
-        .logout-modal-buttons button {
-            padding: 12px 28px;
-            border-radius: 50px;
-            border: none;
-            font-weight: 600;
-            font-size: .9rem;
-            cursor: pointer;
-            transition: .2s ease;
-        }
-
-        .logout-cancel-btn { background: #f0ece4; color: #555; }
-        .logout-cancel-btn:hover { background: #e2ddd4; }
-
-        .logout-confirm-btn { background: var(--green); color: #fff; min-width: 120px; }
-        .logout-confirm-btn:hover { background: var(--deep); }
-        .logout-confirm-btn:active { transform: scale(0.98); }
-
-        /* ── TOAST NOTIFICATIONS (used by the cart panel) ── */
-        .toast-fixed {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            background: var(--green);
-            color: #fff;
-            padding: 14px 22px;
-            border-radius: 12px;
-            font-size: .86rem;
-            z-index: 10001;
-            opacity: 0;
-            transform: translateY(10px);
-            transition: .3s;
-            pointer-events: none;
-            max-width: 300px;
-            box-shadow: 0 6px 24px rgba(0, 0, 0, .2);
-        }
-        .toast-fixed.show { opacity: 1; transform: translateY(0); }
-        .toast-fixed.error { background: #dc2626; }
-
-        /* ── RESPONSIVE ── */
-        @media (max-width: 768px) {
-            .two-col-layout {
-                grid-template-columns: 1fr;
-            }
-            .profile-col {
-                position: static;
-            }
-        }
-    </style>
-<script>
-/* ZYTHERA dark mode — apply before paint to prevent flash */
-(function(){
-  if(localStorage.getItem('zythera_dark')==='1'){
-    document.documentElement.classList.add('zd');
-    if (document.body) document.body.classList.add('dark');
-    document.documentElement.style.background='#111e11';
-    document.addEventListener('DOMContentLoaded',function(){
-      document.body.classList.add('dark');
-      document.documentElement.style.background='';
-    });
-  }
-})();
-</script>
-<link rel="stylesheet" href="responsive.css">
+<link rel="stylesheet" href="assets/css/responsive.css">
+  <link rel="stylesheet" href="assets/css/profile.css">
 </head>
 
 <body>
 
     <nav class="navbar navbar-expand-lg fixed-top">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="website.php"><span style="font-family:'Playfair Display',serif;color:var(--deep);font-weight:700;"> ZYTHERA </span></a>
+  <div class="container">
 
-            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#profileNavMenu" aria-controls="profileNavMenu" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="profileNavMenu">
-                <div class="ms-auto d-flex align-items-center gap-3 flex-wrap">
-                    <a href="website.php#products" class="nav-link fw-semibold">Products</a>
-                    <a href="about.php" class="nav-link fw-semibold">About</a>
-                    <a href="website.php#contact" class="nav-link fw-semibold">Contact Us</a>
-                    <?php if ($userRole !== 'admin'): ?>
-                        <a href="profile.php?tab=orders" class="nav-link fw-semibold">My Orders</a>
-                    <?php endif; ?>
+    <a class="navbar-brand fw-bold" href="website.php">
+      <span style="font-family:'Playfair Display',serif;color:var(--deep);font-weight:700;letter-spacing:2px;"> ZYTHERA </span>
+    </a>
 
-                    <div class="nav-user-capsule">
-                        <div class="text-end d-none d-md-block">
-                            <p class="mb-0 fw-bold" style="font-size:.78rem;color:var(--green);"><?= htmlspecialchars($userName) ?></p>
-                            <?php if ($loginTime): ?>
-                                <small class="text-muted" style="font-size:.6rem;"><span id="liveTime"></span></small>
-                            <?php endif; ?>
-                        </div>
-                        <div class="dropdown">
-                            <?php $navPic = getAvatarURL($uObj->profile_pic ?? null, $uObj->email ?? null, $userName, 34); ?>
-                            <img src="<?= htmlspecialchars($navPic) ?>" class="rounded-circle" width="32" height="32" style="cursor:pointer;object-fit:cover;" data-bs-toggle="dropdown" alt="<?= htmlspecialchars($userName) ?>">
-                            <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2" style="border-radius:14px;min-width:190px;">
-                                <li><a class="dropdown-item py-2" href="profile.php"><i class="fas fa-user me-2 text-muted" style="font-size:.85rem;"></i>My Profile</a></li>
-                                <?php if ($userRole === 'admin'): ?>
-                                    <li><a class="dropdown-item py-2" href="admin.php"><i class="fas fa-user-shield me-2 text-muted" style="font-size:.85rem;"></i>Admin Panel</a></li>
-                                <?php endif; ?>
-                                <li><hr class="dropdown-divider my-1"></li>
-                                <li><a class="dropdown-item py-2 text-danger" href="javascript:void(0)" onclick="openLogoutModal()"><i class="fas fa-sign-out-alt me-2" style="font-size:.85rem;"></i>Logout</a></li>
-                            </ul>
-                        </div>
-                    </div>
+    <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
 
-                    <?php if ($userRole !== 'admin'): ?>
-                        <a href="javascript:void(0)" onclick="openCart()" class="position-relative text-decoration-none d-flex align-items-center" title="Cart" style="color:var(--green);">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="9" cy="21" r="1" />
-                                <circle cx="20" cy="21" r="1" />
-                                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-                            </svg>
-                            <span id="cart-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill"
-                                style="font-size:.55rem;background:var(--green);color:#fff;<?= $cartCount == 0 ? 'display:none;' : '' ?>">
-                                <?= $cartCount ?>
-                            </span>
-                        </a>
-                    <?php endif; ?>
-                </div>
+    <div class="collapse navbar-collapse" id="navMenu">
+      <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-1">
+
+        <!-- Home -->
+        <li class="nav-item">
+          <a href="website.php" class="nav-link fw-semibold">Home</a>
+        </li>
+
+        <!-- Menu dropdown -->
+        <li class="nav-item dropdown">
+          <a href="#" class="nav-link fw-semibold dropdown-toggle zythera-menu-toggle" id="menuDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Menu
+          </a>
+          <ul class="dropdown-menu shadow border-0 zythera-dropdown" aria-labelledby="menuDropdown">
+            <li><a class="dropdown-item" href="about.php">About</a></li>
+            <li><a class="dropdown-item" href="website.php#contact">Contact Us</a></li>
+            <li><a class="dropdown-item" href="website.php#products">Products</a></li>
+          </ul>
+        </li>
+
+        <?php if ($userEmail && $userRole !== 'admin'): ?>
+        <!-- My Orders -->
+        <li class="nav-item">
+          <a href="profile.php?tab=orders" class="nav-link fw-semibold">My Orders</a>
+        </li>
+        <?php endif; ?>
+
+        <?php if ($userEmail): ?>
+        <!-- Profile Capsule -->
+        <li class="nav-item">
+          <div class="nav-user-capsule dropdown">
+            <div class="d-flex align-items-center gap-2" data-bs-toggle="dropdown" style="cursor:pointer;" aria-expanded="false">
+              <div class="text-end d-none d-md-block">
+                <p class="mb-0 fw-bold" style="font-size:.75rem;color:var(--green);line-height:1.2;"><?= htmlspecialchars($userName) ?></p>
+                <?php if ($loginTime): ?>
+                  <small class="text-muted" style="font-size:.58rem;"><span id="liveTime"></span></small>
+                <?php endif; ?>
+              </div>
+              <?php $navPic = getAvatarURL($uObj->profile_pic ?? null, $uObj->email ?? null, $userName, 34); ?>
+              <img src="<?= htmlspecialchars($navPic) ?>" class="rounded-circle" width="32" height="32"
+                style="object-fit:cover;border:2px solid rgba(45,90,45,.2);" alt="<?= htmlspecialchars($userName) ?>">
             </div>
-        </div>
-    </nav>
+            <ul class="dropdown-menu dropdown-menu-end shadow border-0 zythera-dropdown mt-2" style="min-width:190px;">
+              <?php if ($userRole !== 'admin'): ?>
+                <li><a class="dropdown-item py-2" href="profile.php">My Profile</a></li>
+              <?php endif; ?>
+              <?php if ($userRole === 'admin'): ?>
+                <li><a class="dropdown-item py-2" href="admin.php">Admin Panel</a></li>
+              <?php endif; ?>
+              <li><hr class="dropdown-divider my-1"></li>
+              <li><a class="dropdown-item py-2 text-danger" href="javascript:void(0)" onclick="openLogoutModal()">Logout</a></li>
+            </ul>
+          </div>
+        </li>
 
-    <?php if (isset($_GET['updated'])): ?>
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                if (typeof showToast === 'function') showToast('Profile updated successfully.');
-                // Drop ?updated=1 from the URL so refreshing doesn't re-show the toast
-                const url = new URL(window.location.href);
-                url.searchParams.delete('updated');
-                window.history.replaceState({}, '', url.pathname + (url.search || '') + url.hash);
-            });
-        </script>
+        <?php if ($userRole !== 'admin'): ?>
+        <!-- Cart -->
+        <li class="nav-item">
+          <a href="javascript:void(0)" onclick="openCart()" class="nav-cart-btn position-relative" title="Cart">
+            <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+            </svg>
+            <span id="cart-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill"
+              style="font-size:.5rem;background:var(--green);color:#fff;<?= $cartCount == 0 ? 'display:none;' : '' ?>">
+              <?= $cartCount ?>
+            </span>
+          </a>
+        </li>
+        <?php endif; ?>
+
+        <?php else: ?>
+        <!-- Guest: Log In + Cart -->
+        <li class="nav-item">
+          <a href="logsign.php" class="btn btn-success btn-sm rounded-pill px-4 fw-semibold ms-1">Log In</a>
+        </li>
+        <li class="nav-item">
+          <a href="logsign.php" class="nav-cart-btn position-relative ms-1" title="Cart">
+            <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+            </svg>
+          </a>
+        </li>
+        <?php endif; ?>
+
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<?php if (isset($_GET['updated'])): ?>
+        
     <?php endif; ?>
     <div style="height:56px;"></div>
 
@@ -1156,17 +424,14 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
                         <div class="p-4">
                             <div class="section-title"><i class="fas fa-sliders" style="color:var(--green);font-size:.9rem;"></i>Settings</div>
                             <div class="settings-nav" role="tablist" aria-label="Profile settings">
-                                <button type="button" class="settings-tab-btn <?= $activeSettingsTab === 'account' ? 'active' : '' ?>" data-settings-tab="account">
-                                    <i class="fas fa-user"></i>Account
+                                <button type="button" class="settings-tab-btn <?= ($activeSettingsTab === 'account' || $activeSettingsTab === 'security') ? 'active' : '' ?>" data-settings-tab="account">
+                                    <i class="fas fa-user-shield"></i>Account & Security
                                 </button>
                                 <button type="button" class="settings-tab-btn <?= $activeSettingsTab === 'addresses' ? 'active' : '' ?>" data-settings-tab="addresses">
                                     <i class="fas fa-location-dot"></i>Addresses
                                 </button>
                                 <button type="button" class="settings-tab-btn <?= $activeSettingsTab === 'orders' ? 'active' : '' ?>" data-settings-tab="orders">
                                     <i class="fas fa-bag-shopping"></i>My Orders
-                                </button>
-                                <button type="button" class="settings-tab-btn <?= $activeSettingsTab === 'security' ? 'active' : '' ?>" data-settings-tab="security">
-                                    <i class="fas fa-lock"></i>Security
                                 </button>
                             </div>
                             <?php if (!empty($user['created_at'])): ?>
@@ -1191,10 +456,10 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
                             </div>
                         <?php endif; ?>
 
-                        <div class="settings-pane <?= $activeSettingsTab === 'account' ? 'active' : '' ?>" data-settings-pane="account">
+                        <div class="settings-pane <?= ($activeSettingsTab === 'account' || $activeSettingsTab === 'security') ? 'active' : '' ?>" data-settings-pane="account">
                             <div class="section-title">
-                                <i class="fas fa-user" style="color:var(--green);"></i>
-                                Account
+                                <i class="fas fa-user-shield" style="color:var(--green);"></i>
+                                Account & Security
                             </div>
                             <form method="POST" class="row g-3">
                                 <div class="col-md-6">
@@ -1216,6 +481,38 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
                                 <div class="col-12">
                                     <button name="update_account" class="btn-green btn">Save Account</button>
                                 </div>
+                            </form>
+
+                            <!-- Security sub-section merged here -->
+                            <hr style="border-color:var(--sage);margin:28px 0 24px;">
+                            <div class="section-title" style="margin-bottom:16px;">
+                                <i class="fas fa-lock" style="color:var(--green);"></i>
+                                Change Password
+                            </div>
+                            <form method="POST" style="max-width:520px;">
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold" style="color:var(--green);">Old Password</label>
+                                    <div class="position-relative">
+                                        <input class="form-control" name="current_password" type="password" id="oldPwField"
+                                            placeholder="Enter old password" autocomplete="current-password" required>
+                                        <button type="button" onclick="togglePw('oldPwField','oldPwEye')" tabindex="-1"
+                                            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--green);cursor:pointer;">
+                                            <i class="fas fa-eye" id="oldPwEye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold" style="color:var(--green);">New Password</label>
+                                    <div class="position-relative">
+                                        <input class="form-control" name="password" type="password" id="newPwField"
+                                            placeholder="Min 6 characters" autocomplete="new-password" required>
+                                        <button type="button" onclick="togglePw('newPwField','newPwEye')" tabindex="-1"
+                                            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--green);cursor:pointer;">
+                                            <i class="fas fa-eye" id="newPwEye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <button name="change_password" class="btn-green btn">Update Password</button>
                             </form>
                         </div>
 
@@ -1445,37 +742,6 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
 
                         </div>
 
-                        <div class="settings-pane <?= $activeSettingsTab === 'security' ? 'active' : '' ?>" data-settings-pane="security">
-                            <div class="section-title">
-                                <i class="fas fa-lock" style="color:var(--green);"></i>
-                                Security
-                            </div>
-                            <form method="POST" style="max-width:520px;">
-                                <div class="mb-3">
-                                    <label class="form-label small fw-semibold" style="color:var(--green);">Old Password</label>
-                                    <div class="position-relative">
-                                        <input class="form-control" name="current_password" type="password" id="oldPwField"
-                                            placeholder="Enter old password" autocomplete="current-password" required>
-                                        <button type="button" onclick="togglePw('oldPwField','oldPwEye')" tabindex="-1"
-                                            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--green);cursor:pointer;">
-                                            <i class="fas fa-eye" id="oldPwEye"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label small fw-semibold" style="color:var(--green);">New Password</label>
-                                    <div class="position-relative">
-                                        <input class="form-control" name="password" type="password" id="newPwField"
-                                            placeholder="Min 6 characters" autocomplete="new-password" required>
-                                        <button type="button" onclick="togglePw('newPwField','newPwEye')" tabindex="-1"
-                                            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--green);cursor:pointer;">
-                                            <i class="fas fa-eye" id="newPwEye"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                <button name="change_password" class="btn-green btn">Update Password</button>
-                            </form>
-                        </div>
 
                     </div>
                 </div><!-- /orders-col -->
@@ -1559,181 +825,7 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
         <!-- Bootstrap JS -->
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-        <script>
-        const PROFILE_PROVINCE_CITIES = <?= json_encode($provinceCities, JSON_UNESCAPED_UNICODE) ?>;
-        const PROFILE_CITY_ZIP_CODES = <?= json_encode($cityZipCodes, JSON_UNESCAPED_UNICODE) ?>;
-        const PROFILE_CITY_BARANGAYS = <?= json_encode($cityBarangays, JSON_UNESCAPED_UNICODE) ?>;
-        const PROFILE_ALL_CITIES = <?= json_encode($cities, JSON_UNESCAPED_UNICODE) ?>;
-        let savedProfileBarangay = '';
-
-        function filterAddressCities() {
-            const province = document.getElementById('addr_province')?.value || '';
-            const citySelect = document.getElementById('addr_city');
-            if (!citySelect) return;
-            const previous = citySelect.value;
-            const list = (PROFILE_PROVINCE_CITIES[province] && PROFILE_PROVINCE_CITIES[province].length)
-                ? PROFILE_PROVINCE_CITIES[province]
-                : PROFILE_ALL_CITIES;
-            citySelect.innerHTML = '<option value="">Select City / Municipality</option>';
-            list.forEach(function(city) {
-                const opt = document.createElement('option');
-                opt.value = city;
-                opt.textContent = city;
-                if (city === previous) opt.selected = true;
-                citySelect.appendChild(opt);
-            });
-            if (previous && !list.includes(previous)) citySelect.value = '';
-            updateAddressZip();
-            filterAddressBarangays();
-        }
-
-        function updateAddressZip() {
-            const city = document.getElementById('addr_city')?.value || '';
-            const zip = document.getElementById('addr_zip');
-            if (zip) zip.value = PROFILE_CITY_ZIP_CODES[city] || '';
-        }
-
-        function filterAddressBarangays() {
-            const city = document.getElementById('addr_city')?.value || '';
-            const barangaySelect = document.getElementById('addr_barangay');
-            if (!barangaySelect) return;
-            const previous = barangaySelect.value || savedProfileBarangay;
-            const list = (PROFILE_CITY_BARANGAYS[city] && PROFILE_CITY_BARANGAYS[city].length)
-                ? [...PROFILE_CITY_BARANGAYS[city]].sort()
-                : ['Poblacion', ...Array.from({length:30}, (_, i) => 'Barangay ' + (i + 1))];
-            barangaySelect.innerHTML = '<option value="">Select Barangay</option>';
-            list.forEach(function(barangay) {
-                const opt = document.createElement('option');
-                opt.value = barangay;
-                opt.textContent = barangay;
-                if (barangay === previous) opt.selected = true;
-                barangaySelect.appendChild(opt);
-            });
-            if (previous && barangaySelect.value !== previous) {
-                const opt = document.createElement('option');
-                opt.value = previous;
-                opt.textContent = previous;
-                opt.selected = true;
-                barangaySelect.appendChild(opt);
-            }
-        }
-
-        function filterOrders(tab) {
-            // Update active tab
-            document.querySelectorAll('.order-tab').forEach(function(btn) {
-                btn.classList.toggle('active', btn.dataset.tab === tab);
-            });
-
-            const items   = document.querySelectorAll('#orderList .order-link');
-            const emptyMsg = document.getElementById('emptyTabMsg');
-            const emptyTxt = document.getElementById('emptyTabText');
-            const orderList = document.getElementById('orderList');
-
-            if (!items.length) return;
-
-            let visible = 0;
-            items.forEach(function(link) {
-                const status = (link.dataset.status || '').trim();
-                const show   = tab === 'All' || status.toLowerCase() === tab.toLowerCase();
-                link.style.display = show ? '' : 'none';
-                if (show) visible++;
-            });
-
-            if (emptyMsg && orderList) {
-                if (visible === 0) {
-                    orderList.style.display = 'none';
-                    emptyMsg.style.display  = '';
-                    if (emptyTxt) emptyTxt.textContent = 'No ' + tab + ' orders yet.';
-                } else {
-                    orderList.style.display = '';
-                    emptyMsg.style.display  = 'none';
-                }
-            }
-        }
-
-        function showSettingsTab(tab) {
-            document.querySelectorAll('.settings-tab-btn').forEach(function(btn) {
-                btn.classList.toggle('active', btn.dataset.settingsTab === tab);
-            });
-            document.querySelectorAll('.settings-pane').forEach(function(pane) {
-                pane.classList.toggle('active', pane.dataset.settingsPane === tab);
-            });
-            const url = new URL(window.location.href);
-            url.searchParams.set('tab', tab);
-            window.history.replaceState({}, '', url);
-        }
-
-        document.querySelectorAll('.settings-tab-btn').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                showSettingsTab(this.dataset.settingsTab);
-            });
-        });
-
-        function openAddressForm() {
-            const wrap = document.getElementById('addressFormWrap');
-            const form = document.getElementById('addressForm');
-            if (form) form.reset();
-            savedProfileBarangay = '';
-            document.getElementById('address_id').value = '';
-            filterAddressCities();
-            if (wrap) wrap.style.display = 'block';
-            wrap?.scrollIntoView({behavior:'smooth', block:'start'});
-        }
-
-        function closeAddressForm() {
-            const wrap = document.getElementById('addressFormWrap');
-            if (wrap) wrap.style.display = 'none';
-        }
-
-        function editAddress(btn) {
-            const data = JSON.parse(btn.dataset.address || '{}');
-            document.getElementById('address_id').value = data.address_id || '';
-            document.getElementById('address_label').value = data.address_label || 'Home';
-            document.getElementById('addr_phone').value = data.phone_num || '';
-            savedProfileBarangay = data.barangay || '';
-            document.getElementById('addr_province').value = data.province || '';
-            filterAddressCities();
-            document.getElementById('addr_city').value = data.city_municipality || '';
-            updateAddressZip();
-            filterAddressBarangays();
-            document.getElementById('addr_barangay').value = data.barangay || '';
-            if (data.barangay && document.getElementById('addr_barangay').value !== data.barangay) {
-                const opt = document.createElement('option');
-                opt.value = data.barangay;
-                opt.textContent = data.barangay;
-                opt.selected = true;
-                document.getElementById('addr_barangay').appendChild(opt);
-            }
-            document.getElementById('addr_zip').value = data.zip_code || PROFILE_CITY_ZIP_CODES[data.city_municipality] || '';
-            document.getElementById('addr_street').value = data.st_address || '';
-            document.getElementById('addr_default').checked = Number(data.is_default || 0) === 1;
-            const wrap = document.getElementById('addressFormWrap');
-            if (wrap) wrap.style.display = 'block';
-            wrap?.scrollIntoView({behavior:'smooth', block:'start'});
-        }
-
-        function togglePw(inputId = 'newPwField', eyeId = 'newPwEye') {
-            const input = document.getElementById(inputId);
-            const eye = document.getElementById(eyeId);
-            if (!input) return;
-            input.type = input.type === 'password' ? 'text' : 'password';
-            if (eye) eye.className = input.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
-        }
-
-        function updateProfileNavTime() {
-            const el = document.getElementById('liveTime');
-            if (el) el.textContent = new Date().toLocaleString('en-PH', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
-        }
-        setInterval(updateProfileNavTime, 1000);
-        updateProfileNavTime();
-        </script>
+        
 
         <?php
         $flash = null;
@@ -1820,62 +912,7 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
                     </div>
                 </div>
             </div>
-            <style>
-                @keyframes fadeInBg {
-                    from {
-                        opacity: 0;
-                    }
-
-                    to {
-                        opacity: 1;
-                    }
-                }
-
-                @keyframes slideUp {
-                    from {
-                        transform: translateY(60px);
-                        opacity: 0;
-                    }
-
-                    to {
-                        transform: translateY(0);
-                        opacity: 1;
-                    }
-                }
-
-                @keyframes popIn {
-                    from {
-                        transform: scale(.3);
-                        opacity: 0;
-                    }
-
-                    to {
-                        transform: scale(1);
-                        opacity: 1;
-                    }
-                }
-            </style>
-            <script>
-                function closeOrderModal() {
-                    const modal = document.getElementById('orderModal');
-                    modal.style.animation = 'fadeInBg .25s ease reverse forwards';
-                    setTimeout(() => modal.remove(), 280);
-                    const hist = document.querySelector('.section-card:last-of-type');
-                    if (hist) setTimeout(() => hist.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    }), 300);
-                }
-
-                function togglePw(inputId = 'newPwField', eyeId = 'newPwEye') {
-                    const input = document.getElementById(inputId);
-                    if (!input) return;
-                    const show = input.type === 'password';
-                    input.type = show ? 'text' : 'password';
-                    const icon = document.getElementById(eyeId);
-                    if (icon) icon.className = show ? 'fas fa-eye-slash' : 'fas fa-eye';
-                }
-            </script>
+            
         <?php endif; ?>
 
         <!-- ── CART SLIDE-OUT PANEL — hidden for admin ── -->
@@ -2017,275 +1054,7 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
 
         <div id="toast-msg" class="toast-fixed"></div>
 
-        <script>
-            // ── Cart state seeded from PHP session + live DB via fetch ──
-            let cartItemsJS = <?= json_encode(array_values(array_map(function ($i) {
-                                return ['inv_id' => (string)($i['inv_id'] ?? ''), 'name' => $i['name'] ?? '', 'price' => (float)($i['price'] ?? 0), 'qty' => (int)($i['qty'] ?? 1), 'image' => $i['image'] ?? ''];
-                            }, $_SESSION['cart'][$userEmail] ?? []))) ?>;
-            let selectedCartIds = new Set(JSON.parse(localStorage.getItem('zythera_selected_cart') || '[]').map(String));
-            // Stock map from PHP inventory (inv_id => stock)
-            const stockMapJS = <?= json_encode($stockMap) ?>;
-
-            // On page load, always sync cart from DB so badge is accurate
-            (function syncCartOnLoad() {
-                <?php if ($userRole !== 'admin'): ?>
-                fetch('getcart.php', { credentials: 'same-origin' })
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.cart) {
-                            cartItemsJS = data.cart;
-                            const badge = document.getElementById('cart-badge');
-                            if (badge) {
-                                badge.textContent = data.total_items;
-                                badge.style.display = data.total_items > 0 ? '' : 'none';
-                            }
-                            renderCart();
-                        }
-                    }).catch(() => {});
-                <?php endif; ?>
-            })();
-
-            // ── Open / Close cart panel ───────────────────────────────────
-            function openCart() {
-                document.getElementById('cartPanel').style.right = '0';
-                document.getElementById('cartBackdrop').style.display = 'block';
-                document.body.style.overflow = 'hidden';
-            }
-
-            function closeCart() {
-                document.getElementById('cartPanel').style.right = '-110vw';
-                document.getElementById('cartBackdrop').style.display = 'none';
-                document.body.style.overflow = '';
-            }
-
-            function syncSelectedCartIds() {
-                const currentIds = new Set(cartItemsJS.map(item => String(item.inv_id)));
-                selectedCartIds = new Set([...selectedCartIds].filter(id => currentIds.has(id)));
-                localStorage.setItem('zythera_selected_cart', JSON.stringify([...selectedCartIds]));
-            }
-
-            function toggleCartSelection(itemId, checked) {
-                itemId = String(itemId);
-                if (checked) selectedCartIds.add(itemId);
-                else selectedCartIds.delete(itemId);
-                syncSelectedCartIds();
-                updateSelectAllUI();
-                const err = document.getElementById('cartSelectionError');
-                if (err && selectedCartIds.size > 0) err.style.display = 'none';
-            }
-
-            // ── Select-All toolbar: check/uncheck every item at once ──────
-            function toggleSelectAll(checked) {
-                document.querySelectorAll('.cart-select-checkbox').forEach(cb => { cb.checked = checked; });
-                cartItemsJS.forEach(item => {
-                    const id = String(item.inv_id);
-                    if (checked) selectedCartIds.add(id);
-                    else selectedCartIds.delete(id);
-                });
-                syncSelectedCartIds();
-                updateSelectAllUI();
-                const err = document.getElementById('cartSelectionError');
-                if (err && selectedCartIds.size > 0) err.style.display = 'none';
-            }
-
-            // Keeps the Select-All checkbox (checked/indeterminate), its visibility,
-            // and the "x of y selected" label in sync with the current selection.
-            function updateSelectAllUI() {
-                const bar = document.getElementById('cartSelectAllBar');
-                const cb = document.getElementById('cartSelectAllCheckbox');
-                const countEl = document.getElementById('cartSelectAllCount');
-                if (!bar || !cb) return;
-
-                const total = cartItemsJS.length;
-                if (total < 2) {
-                    bar.style.display = 'none';
-                    return;
-                }
-                bar.style.display = 'flex';
-
-                const selectedCount = cartItemsJS.filter(i => selectedCartIds.has(String(i.inv_id))).length;
-                cb.checked = total > 0 && selectedCount === total;
-                cb.indeterminate = selectedCount > 0 && selectedCount < total;
-                if (countEl) countEl.textContent = selectedCount + ' of ' + total + ' selected';
-            }
-
-            function goToSelectedCheckout(event) {
-                syncSelectedCartIds();
-                if (selectedCartIds.size === 0) {
-                    if (event) event.preventDefault();
-                    const err = document.getElementById('cartSelectionError');
-                    if (err) {
-                        err.textContent = 'Please select products first.';
-                        err.style.display = 'block';
-                    }
-                    openCart();
-                    return false;
-                }
-                const selected = encodeURIComponent([...selectedCartIds].join(','));
-                window.location.href = 'checkout.php?selected=' + selected;
-                if (event) event.preventDefault();
-                return false;
-            }
-
-            // ── Re-render cart panel items + subtotal + header count ──────
-            function renderCart() {
-                const container = document.getElementById('cartItems');
-                const footer = document.getElementById('cartFooter');
-                const subEl = document.getElementById('cartSubtotal');
-                const countEl = document.getElementById('cartItemCount');
-
-                let subtotal = 0, totalQty = 0, distinctCount = cartItemsJS.length;
-
-                syncSelectedCartIds();
-
-                if (cartItemsJS.length === 0) {
-                    container.innerHTML = `
-            <div style="text-align:center;padding:60px 20px;color:#bbb;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none"
-                stroke="#d4e4d4" stroke-width="1.5" stroke-linecap="round"
-                style="margin-bottom:14px;display:block;margin-left:auto;margin-right:auto;">
-                <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
-                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
-              </svg>
-              <p style="font-size:.9rem;line-height:1.6;">Your cart is empty.<br>Add some furniture!</p>
-            </div>`;
-                    if (footer) footer.style.display = 'none';
-                    if (countEl) countEl.textContent = 'Your cart is empty';
-                    const badge = document.getElementById('cart-badge');
-                    if (badge) {
-                        badge.textContent = '0';
-                        badge.style.display = 'none';
-                    }
-                    updateSelectAllUI();
-                    return;
-                }
-
-                let html = '';
-                cartItemsJS.forEach(item => {
-                    const price = Number(item.price) || 0;
-                    const qty = Number(item.qty) || 1;
-                    const lineTotal = price * qty;
-                    const stock = stockMapJS[item.inv_id] ?? 99;
-                    subtotal += lineTotal;
-                    totalQty += qty;
-                    const imgSrc = item.image || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=60&h=60&fit=crop';
-                    const itemId = String(item.inv_id);
-                    const checked = selectedCartIds.has(itemId) ? 'checked' : '';
-
-                    const stockLabel = stock === 0 ? 'Out of Stock' :
-                        stock <= 5 ? 'Low stock: ' + stock + ' left' :
-                        'In stock: ' + stock;
-                    const stockColor = stock === 0 ? '#dc2626' : stock <= 5 ? '#f59e0b' : '#16a34a';
-
-                    html += `
-            <div style="background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:10px;
-              box-shadow:0 2px 10px rgba(0,0,0,.06);">
-              <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
-                <input type="checkbox" class="cart-select-checkbox" value="${escHtml(itemId)}" ${checked}
-                  onchange="toggleCartSelection('${escHtml(itemId)}', this.checked)"
-                  style="width:18px;height:18px;accent-color:var(--green);flex-shrink:0;cursor:pointer;"
-                  aria-label="Select ${escHtml(String(item.name || 'item'))} for checkout">
-                <img src="${escHtml(imgSrc)}" alt=""
-                  style="width:54px;height:54px;object-fit:cover;border-radius:10px;flex-shrink:0;background:#d4e4d4;"
-                  onerror="this.src='https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=60&h=60&fit=crop'">
-                <div style="flex:1;min-width:0;">
-                  <div style="font-weight:600;color:#1a2e1a;font-size:.88rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                    ${escHtml(String(item.name))}
-                  </div>
-                  <div style="color:#7aab7a;font-size:.76rem;margin-top:1px;">₱${price.toLocaleString('en-PH')} each</div>
-                  <div style="font-size:.68rem;color:${stockColor};font-weight:600;margin-top:2px;">${stockLabel}</div>
-                </div>
-                <div style="font-weight:700;color:#2d5a2d;white-space:nowrap;font-size:.92rem;">
-                  ₱${lineTotal.toLocaleString('en-PH')}
-                </div>
-              </div>
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
-                <div style="display:flex;align-items:center;border:1.5px solid #d4e4d4;border-radius:8px;overflow:hidden;">
-                  <button onclick="cartQty('${item.inv_id}','minus')"
-                    style="width:30px;height:30px;border:none;background:#d4e4d4;color:#2d5a2d;font-weight:700;font-size:1rem;cursor:pointer;line-height:1;">−</button>
-                  <span id="panel-qty-${item.inv_id}"
-                    style="width:34px;text-align:center;font-weight:700;font-size:.88rem;color:#1a2e1a;">${qty}</span>
-                  <button onclick="cartQty('${item.inv_id}','plus')"
-                    style="width:30px;height:30px;border:none;background:#d4e4d4;color:#2d5a2d;font-weight:700;font-size:1rem;cursor:pointer;line-height:1;">+</button>
-                </div>
-                <button onclick="cartQty('${item.inv_id}','remove')"
-                  style="background:none;border:none;color:#dc2626;font-size:.78rem;font-weight:600;cursor:pointer;padding:4px 8px;border-radius:6px;transition:.15s;"
-                  onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">
-                  <i class="fas fa-trash-alt" style="margin-right:4px;"></i>Remove
-                </button>
-              </div>
-            </div>`;
-                });
-
-                container.innerHTML = html;
-                if (subEl) subEl.textContent = '₱' + subtotal.toLocaleString('en-PH');
-                if (footer) footer.style.display = 'block';
-                if (countEl) countEl.textContent = distinctCount === 1 ? '1 item in cart' : distinctCount + ' items in cart';
-                const badge = document.getElementById('cart-badge');
-                if (badge) {
-                    badge.textContent = distinctCount;
-                    badge.style.display = distinctCount > 0 ? '' : 'none';
-                }
-                updateSelectAllUI();
-            }
-
-            // ── Qty stepper in cart sidebar → update_cart.php ────────────
-            function cartQty(itemId, action) {
-                if (action === 'plus') {
-                    const item = cartItemsJS.find(i => String(i.inv_id) === String(itemId));
-                    const max = stockMapJS[itemId] ?? 9999;
-                    if (item && Number(item.qty) >= max) {
-                        showToast('Maximum stock (' + max + ') already in cart.', 'error');
-                        return;
-                    }
-                }
-
-                fetch('update_cart.php', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: 'item_id=' + encodeURIComponent(itemId) + '&qty_action=' + encodeURIComponent(action)
-                })
-                .then(r => r.json())
-                .then(data => {
-                    if (!data.success) {
-                        showToast(data.message || 'Could not update cart.', 'error');
-                        return;
-                    }
-                    cartItemsJS = data.cart || [];
-                    renderCart();
-                    try {
-                        const bc = new BroadcastChannel('zythera_cart');
-                        bc.postMessage({ type: 'cart_updated', cart: cartItemsJS });
-                        bc.close();
-                    } catch (e) { /* BroadcastChannel not supported — no-op */ }
-                })
-                .catch(() => showToast('Could not update cart. Try again.', 'error'));
-            }
-
-            function escHtml(s) {
-                return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-            }
-
-            function showToast(msg, type = 'success') {
-                const t = document.getElementById('toast-msg');
-                if (!t) return;
-                t.textContent = msg;
-                t.className = 'toast-fixed show' + (type === 'error' ? ' error' : '');
-                setTimeout(() => t.classList.remove('show'), 3500);
-            }
-
-            // Live-sync cart if changed in another tab (e.g. checkout page)
-            try {
-                const cartBc = new BroadcastChannel('zythera_cart');
-                cartBc.onmessage = (e) => {
-                    if (e.data && e.data.type === 'cart_updated') {
-                        cartItemsJS = e.data.cart || [];
-                        renderCart();
-                    }
-                };
-            } catch (e) { /* BroadcastChannel not supported — no-op */ }
-        </script>
+        
 
         <!-- Logout Confirmation Modal -->
         <div id="logoutModalOverlay" class="logout-modal-overlay">
@@ -2303,44 +1072,22 @@ foreach ($_SESSION['inventory'] ?? [] as $inv) {
             </div>
         </div>
 
-        <script>
-            function openLogoutModal() {
-                const overlay = document.getElementById('logoutModalOverlay');
-                if (overlay) {
-                    overlay.classList.add('active');
-                    document.body.style.overflow = 'hidden';
-                }
-            }
+        
 
-            function closeLogoutModal(event) {
-                const overlay = document.getElementById('logoutModalOverlay');
-                if (overlay) {
-                    overlay.classList.remove('active');
-                    document.body.style.overflow = '';
-                }
-            }
-
-            function performLogout() {
-                const confirmBtn = document.querySelector('.logout-confirm-btn');
-                if (confirmBtn) {
-                    confirmBtn.disabled = true;
-                    confirmBtn.textContent = 'Logging out...';
-                }
-                window.location.href = 'logout.php';
-            }
-
-            // Close modal on Escape key
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') closeLogoutModal();
-            });
-
-            // Close modal on outside click
-            document.addEventListener('click', function(e) {
-                const overlay = document.getElementById('logoutModalOverlay');
-                if (overlay && e.target === overlay) closeLogoutModal(e);
-            });
-        </script>
-
+  <script>
+    /* PHP-seeded globals for profile.js */
+    const PROFILE_PROVINCE_CITIES = <?= json_encode($provinceCities, JSON_UNESCAPED_UNICODE) ?>;
+    const PROFILE_CITY_ZIP_CODES  = <?= json_encode($cityZipCodes,   JSON_UNESCAPED_UNICODE) ?>;
+    const PROFILE_CITY_BARANGAYS  = <?= json_encode($cityBarangays,  JSON_UNESCAPED_UNICODE) ?>;
+    const PROFILE_ALL_CITIES      = <?= json_encode($cities,         JSON_UNESCAPED_UNICODE) ?>;
+    let cartItemsJS = <?= json_encode(array_values(array_map(function ($i) {
+      return ['inv_id' => (string)($i['inv_id'] ?? ''), 'name' => $i['name'] ?? '', 'price' => (float)($i['price'] ?? 0), 'qty' => (int)($i['qty'] ?? 1), 'image' => $i['image'] ?? ''];
+    }, $_SESSION['cart'][$userEmail] ?? []))) ?>;
+    const stockMapJS = <?= json_encode($stockMap) ?>;
+    const PROFILE_USER_ROLE = <?= json_encode($userRole ?? 'user') ?>;
+    const PROFILE_IS_LOGGED_IN = <?= json_encode((bool)$userEmail) ?>;
+  </script>
+  <script src="assets/js/profile.js"></script>
 </body>
 
 </html>

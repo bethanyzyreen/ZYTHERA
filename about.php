@@ -25,369 +25,118 @@ if ($userEmail && isset($_SESSION['cart'][$userEmail])) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ZYTHERA | About</title>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,700&family=Roboto:wght@300;400;500;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
-  <style>
-    :root{--logo-font:'Playfair Display',serif;--ui-font:'Roboto',sans-serif;--text-font:'Merriweather',serif}
-    body{font-family:var(--ui-font);}
-    h1,h2,h3,h4,h5,.navbar-brand,.brand-name,.section-title,.page-header h2,footer .footer-brand{font-family:var(--logo-font);}
-    p,small,.caption,.text-muted{font-family:var(--text-font);}
-  </style>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="dark-mode.css">
-  <script src="dark-mode.js"></script>
-  <style>
+<link rel="stylesheet" href="assets/css/responsive.css">
+  <link rel="stylesheet" href="assets/css/about.css">
 
-        :root {
-      --logo-font: 'Playfair Display', serif;
-      --ui-font: 'Roboto', sans-serif;
-      --text-font: 'Merriweather', serif
-    }
-
-    body {
-      font-family: var(--ui-font);
-    }
-
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    .navbar-brand,
-    .brand-name,
-    .section-title,
-    .page-header h2,
-    footer .footer-brand {
-      font-family: var(--logo-font);
-    }
-
-    :root {
-      --green: #2d5a2d;
-      --sage:  #d4e4d4;
-      --cream: #f5f2ec;
-      --terra: #bc8a7b;
-      --deep:  #1a2e1a;
-      --transition: .22s ease;
-    }
-    * { font-family: var(--ui-font); }
-    body { background: var(--cream); padding-top: 70px; }
-
-    .navbar { background: #fff !important; box-shadow: 0 1px 12px rgba(0,0,0,.07); }
-    .navbar-brand { font-family: var(--logo-font); color: var(--green) !important; font-size: 1.55rem; letter-spacing: 2px; }
-    .nav-link {
-      font-weight: 500;
-      color: #555 !important;
-      font-size: .875rem;
-      letter-spacing: .2px;
-      padding: 6px 4px !important;
-      position: relative;
-      transition: color var(--transition);
-    }
-    .nav-link::after {
-      content: '';
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      height: 2px;
-      background: var(--green);
-      border-radius: 2px;
-      transform: scaleX(0);
-      transition: transform var(--transition);
-    }
-    .nav-link:hover { color: var(--green) !important; }
-    .nav-link:hover::after { transform: scaleX(1); }
-
-    /* User capsule in nav */
-    .nav-user-capsule {
-      display: flex;
-      align-items: center;
-      background: #ffffff;
-      border-radius: 50px;
-      padding: 6px 12px 6px 6px;
-      gap: 8px;
-      border: 1px solid rgba(45,90,45,.12);
-      transition: all var(--transition);
-      box-shadow: 0 2px 8px rgba(0,0,0,.04);
-    }
-    .nav-user-capsule:hover {
-      border-color: rgba(45,90,45,.25);
-      box-shadow: 0 4px 12px rgba(0,0,0,.08);
-    }
-    .nav-user-capsule img {
-      border: 2.5px solid rgba(45,90,45,.15);
-      transition: border-color var(--transition);
-    }
-    .nav-user-capsule:hover img {
-      border-color: rgba(45,90,45,.3);
-    }
-    body.dark .nav-user-capsule {
-      background: #1f2937;
-      border-color: rgba(168,212,168,.15);
-    }
-    body.dark .nav-user-capsule:hover {
-      background: #2d3748;
-      border-color: rgba(168,212,168,.3);
-    }
-
-    /* ── LOGOUT CONFIRMATION MODAL ── */
-    .logout-modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,.6);
-      z-index: 10000;
-      align-items: center;
-      justify-content: center;
-      backdrop-filter: blur(3px);
-    }
-    .logout-modal-overlay.active { display: flex; }
-
-    .logout-modal {
-      background: #fff;
-      border-radius: 20px;
-      padding: 32px 28px;
-      width: min(420px, calc(100vw - 32px));
-      box-shadow: 0 20px 60px rgba(0,0,0,.3);
-      text-align: center;
-      animation: slideDown .3s ease-out;
-    }
-
-    @keyframes slideDown {
-      from {
-        opacity: 0;
-        transform: translateY(-20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .logout-modal h2 {
-      font-family: 'Playfair Display', serif;
-      color: var(--deep);
-      font-size: 1.3rem;
-      margin: 0 0 12px 0;
-      font-weight: 700;
-    }
-
-    .logout-modal p {
-      color: #666;
-      font-size: .95rem;
-      margin: 0 0 24px 0;
-      line-height: 1.5;
-    }
-
-    .logout-modal-buttons {
-      display: flex;
-      gap: 12px;
-      justify-content: center;
-    }
-
-    .logout-modal-buttons button {
-      padding: 12px 28px;
-      border-radius: 50px;
-      border: none;
-      font-weight: 600;
-      font-size: .9rem;
-      cursor: pointer;
-      transition: .2s ease;
-      font-family: var(--ui-font);
-    }
-
-    .logout-cancel-btn {
-      background: #f0ece4;
-      color: #555;
-    }
-    .logout-cancel-btn:hover {
-      background: #e2ddd4;
-    }
-
-    .logout-confirm-btn {
-      background: var(--green);
-      color: #fff;
-      min-width: 120px;
-    }
-    .logout-confirm-btn:hover {
-      background: var(--deep);
-    }
-    .logout-confirm-btn:active {
-      transform: scale(0.98);
-    }
-
-    .about-hero { background: var(--deep); color: #fff; padding: 5rem 0 4rem; position: relative; overflow: hidden; }
-    .about-hero::after { content: ''; position: absolute; inset: 0; background: url('pci/download_(4).jpeg') center/cover no-repeat; opacity: .18; z-index: 0; }
-    .about-hero .container { position: relative; z-index: 1; }
-    .about-hero h1 { font-family: var(--logo-font); font-size: clamp(2.2rem, 5vw, 3.4rem); font-weight: 700; line-height: 1.25; margin-bottom: 1rem; }
-    .about-hero p { font-size: 1.05rem; opacity: .8; max-width: 540px; line-height: 1.8; }
-    .hero-badge { display: inline-block; background: rgba(212,228,212,.15); border: 1px solid rgba(212,228,212,.35); color: var(--sage); font-size: .72rem; letter-spacing: 3px; text-transform: uppercase; padding: .35rem .9rem; border-radius: 50px; margin-bottom: 1.25rem; }
-
-    .section { padding: 64px 0; }
-    .section-label { font-size: .75rem; letter-spacing: 3px; text-transform: uppercase; color: #7b8c75; margin-bottom: .5rem; }
-    .section-title { font-family: var(--logo-font); color: var(--green); font-size: 1.9rem; margin-bottom: 1.25rem; }
-
-    .feature-card { background: #fff; border-radius: 20px; padding: 1.75rem; box-shadow: 0 4px 20px rgba(0,0,0,.07); border: none; height: 100%; transition: transform .25s, box-shadow .25s; }
-    .feature-card:hover { transform: translateY(-4px); box-shadow: 0 14px 38px rgba(0,0,0,.11); }
-    .feature-card .icon-wrap { width: 44px; height: 44px; background: var(--sage); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; }
-    .feature-card .icon-wrap i { color: var(--green); font-size: 1.1rem; }
-    .feature-card h5 { font-family: var(--logo-font); color: var(--deep); font-size: 1.05rem; margin-bottom: .6rem; }
-    .feature-card p { color: #55605b; line-height: 1.75; font-size: .93rem; margin: 0; }
-
-    .metric-strip { background: var(--green); padding: 3.5rem 0; }
-    .metric-item { text-align: center; padding: 1rem; }
-    .metric-item h3 { font-family: var(--logo-font); font-size: 2.4rem; color: #fff; margin-bottom: .4rem; }
-    .metric-item p { color: var(--sage); font-size: .88rem; margin: 0; line-height: 1.6; }
-
-    .sage-divider { background: var(--sage); height: 3px; width: 48px; border-radius: 4px; margin-bottom: 1.5rem; }
-    .highlight-row { background: #fff; padding: 5rem 0; }
-
-    .img-rounded { border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,.09); }
-    .img-rounded img { width: 100%; height: 100%; object-fit: cover; display: block; }
-
-    /* ── TEAM PHOTO CARD ── */
-    .team-photo-card {
-      background: #fff;
-      border-radius: 20px;
-      overflow: hidden;
-      box-shadow: 0 4px 20px rgba(0,0,0,.07);
-      transition: transform .25s, box-shadow .25s;
-.navbar-brand span { font-family: 'Playfair Display', serif; }
-    }
-    .team-photo-card:hover { transform: translateY(-4px); box-shadow: 0 14px 38px rgba(0,0,0,.11); }
-   .team-photo-card img { width: 100%; height: 250px; object-fit: cover; object-position: center 60%; display: block; }
-   .team-photo-card .team-caption { padding: 1.25rem 1.5rem; }
-    .team-photo-card h6 { font-family: var(--logo-font); color: var(--deep); font-size: 1.05rem; margin-bottom: .3rem; }
-    .team-photo-card small { color: #7b8c75; font-size: .82rem; }
-
-    .cta-panel { background: var(--deep); border-radius: 20px; padding: 3rem; color: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.13); }
-    .cta-panel h2 { font-family: var(--logo-font); font-size: 1.8rem; color: #fff; margin-bottom: .85rem; }
-    .cta-panel p { color: rgba(255,255,255,.72); line-height: 1.75; margin-bottom: 1.5rem; }
-
-    .btn-green { background: var(--green); color: #fff; border: none; border-radius: 50px; padding: .65rem 1.6rem; font-weight: 600; font-size: .9rem; transition: .2s; }
-    .btn-green:hover { background: var(--deep); color: #fff; }
-    .btn-outline-green { background: transparent; color: #fff; border: 2px solid rgba(255,255,255,.45); border-radius: 50px; padding: .6rem 1.6rem; font-weight: 600; font-size: .9rem; transition: .2s; }
-    .btn-outline-green:hover { border-color: #fff; color: #fff; }
-
-    .tag-badge { background: var(--sage); color: var(--green); font-size: .72rem; font-weight: 600; border-radius: 6px; padding: 3px 10px; display: inline-block; margin-bottom: .75rem; }
-
-    .value-item { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
-    .value-num { flex-shrink: 0; width: 36px; height: 36px; background: var(--sage); color: var(--green); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .88rem; }
-    .value-item p { color: #55605b; line-height: 1.75; font-size: .93rem; margin: 0; }
-    .value-item h6 { color: var(--deep); font-weight: 600; margin-bottom: .25rem; }
-
-    @media (max-width: 768px) {
-      .about-hero { padding: 3.5rem 0 3rem; }
-      .cta-panel { padding: 2rem 1.5rem; }
-      .metric-item h3 { font-size: 1.9rem; }
-      .team-photo-card img { height: 240px; }
-    }
-
-    /* ── FOOTER ── */
-    .about-footer {
-      background: var(--deep);
-      padding: 56px 0 0;
-      margin-top: 0;
-    }
-    .about-footer-col-title {
-      font-size: .7rem;
-      letter-spacing: 2.5px;
-      text-transform: uppercase;
-      color: rgba(212,228,212,.4);
-      margin-bottom: 14px;
-      font-weight: 600;
-    }
-    .about-footer-link {
-      display: block;
-      color: rgba(212,228,212,.65);
-      text-decoration: none;
-      font-size: .84rem;
-      padding: 5px 0;
-      transition: color .15s;
-    }
-    .about-footer-link:hover { color: #fff; }
-    .about-footer-social {
-      width: 34px; height: 34px;
-      border-radius: 50%;
-      background: rgba(255,255,255,.07);
-      color: rgba(212,228,212,.65);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: .82rem;
-      text-decoration: none;
-      transition: background .15s, color .15s;
-    }
-    .about-footer-social:hover { background: var(--green); color: #fff; }
-
-    /* ── Dark mode footer ── */
-    body.dark .about-footer { background: #0a140a !important; }
-    body.dark .about-footer * { color: rgba(212,228,212,.65) !important; }
-    body.dark .about-footer .about-footer-link:hover,
-    body.dark .about-footer .about-footer-social:hover { color: #fff !important; }
-  </style>
-<script>
-/* ZYTHERA dark mode — apply before paint to prevent flash */
-(function(){
-  if(localStorage.getItem('zythera_dark')==='1'){
-    document.documentElement.style.background='#111e11';
-    document.addEventListener('DOMContentLoaded',function(){
-      document.body.classList.add('dark');
-      document.documentElement.style.background='';
-    });
-  }
-})();
-</script>
-<link rel="stylesheet" href="responsive.css">
 </head>
 <body>
 
   <!-- NAVBAR -->
   <nav class="navbar navbar-expand-lg fixed-top">
-    <div class="container">
-      <a class="navbar-brand fw-bold" href="website.php"><span style="font-family: 'Playfair Display', serif; color: var(--deep); font-weight: 700;"> ZYTHERA </span></a>
+  <div class="container">
 
-      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="navMenu">
-        <div class="ms-auto d-flex align-items-center gap-3 flex-wrap">
-          <a href="website.php#products" class="nav-link fw-semibold" style="color:var(--green)!important;">Products</a>
-          <a href="about.php" class="nav-link fw-semibold" style="color:var(--green)!important;">About</a>
-          <a href="website.php#contact" class="nav-link fw-semibold" style="color:var(--green)!important;">Contact Us</a>
-          <?php if ($userEmail && $userRole !== 'admin'): ?>
-            <a href="profile.php?tab=orders" class="nav-link fw-semibold" style="color:var(--green)!important;">My Orders</a>
-          <?php endif; ?>
-          <?php if ($userEmail): ?>
-            <div class="nav-user-capsule">
+    <a class="navbar-brand fw-bold" href="website.php">
+      <span style="font-family:'Playfair Display',serif;color:var(--deep);font-weight:700;letter-spacing:2px;"> ZYTHERA </span>
+    </a>
+
+    <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navMenu">
+      <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-1">
+
+        <!-- Home -->
+        <li class="nav-item">
+          <a href="website.php" class="nav-link fw-semibold">Home</a>
+        </li>
+
+        <!-- Menu dropdown -->
+        <li class="nav-item dropdown">
+          <a href="#" class="nav-link fw-semibold dropdown-toggle zythera-menu-toggle" id="menuDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Menu
+          </a>
+          <ul class="dropdown-menu shadow border-0 zythera-dropdown" aria-labelledby="menuDropdown">
+            <li><a class="dropdown-item" href="about.php">About</a></li>
+            <li><a class="dropdown-item" href="website.php#contact">Contact Us</a></li>
+            <li><a class="dropdown-item" href="website.php#products">Products</a></li>
+          </ul>
+        </li>
+
+        <?php if ($userEmail && $userRole !== 'admin'): ?>
+        <!-- My Orders -->
+        <li class="nav-item">
+          <a href="profile.php?tab=orders" class="nav-link fw-semibold">My Orders</a>
+        </li>
+        <?php endif; ?>
+
+        <?php if ($userEmail): ?>
+        <!-- Profile Capsule -->
+        <li class="nav-item">
+          <div class="nav-user-capsule dropdown">
+            <div class="d-flex align-items-center gap-2" data-bs-toggle="dropdown" style="cursor:pointer;" aria-expanded="false">
               <div class="text-end d-none d-md-block">
-                <p class="mb-0 fw-bold" style="font-size:.78rem;color:var(--green);"><?= htmlspecialchars($userName) ?></p>
+                <p class="mb-0 fw-bold" style="font-size:.75rem;color:var(--green);line-height:1.2;"><?= htmlspecialchars($userName) ?></p>
                 <?php if ($loginTime): ?>
-                  <small class="text-muted" style="font-size:.6rem;"><span id="liveTime"></span></small>
+                  <small class="text-muted" style="font-size:.58rem;"><span id="liveTime"></span></small>
                 <?php endif; ?>
               </div>
-              <div class="dropdown">
-                <?php
-                    $navPic = getAvatarURL($uObj->profile_pic ?? null, $uObj->email ?? null, $userName, 34);
-                ?>
-                <img src="<?= htmlspecialchars($navPic) ?>" class="rounded-circle" width="32" height="32" style="cursor:pointer;border:2px solid rgba(45,90,45,.2);object-fit:cover;" data-bs-toggle="dropdown" alt="<?= htmlspecialchars($userName) ?>">
-                <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2" style="border-radius:14px;min-width:190px;">
-                  <li><a class="dropdown-item py-2" href="profile.php"><i class="fas fa-user me-2 text-muted" style="font-size:.85rem;"></i>My Profile</a></li>
-                  <?php if ($userRole === 'admin'): ?>
-                    <li><a class="dropdown-item py-2" href="admin.php"><i class="fas fa-user-shield me-2 text-muted" style="font-size:.85rem;"></i>Admin Panel</a></li>
-                  <?php endif; ?>
-                  <li><hr class="dropdown-divider my-1"></li>
-                  <li><a class="dropdown-item py-2 text-danger" href="javascript:void(0)" onclick="openLogoutModal()"><i class="fas fa-sign-out-alt me-2" style="font-size:.85rem;"></i>Logout</a></li>
-                </ul>
-              </div>
+              <?php $navPic = getAvatarURL($uObj->profile_pic ?? null, $uObj->email ?? null, $userName, 34); ?>
+              <img src="<?= htmlspecialchars($navPic) ?>" class="rounded-circle" width="32" height="32"
+                style="object-fit:cover;border:2px solid rgba(45,90,45,.2);" alt="<?= htmlspecialchars($userName) ?>">
             </div>
-          <?php else: ?>
-            <a href="logsign.php" class="btn btn-success btn-sm rounded-pill px-4 fw-semibold">Log In</a>
-          <?php endif; ?>
-        </div>
-      </div>
-    </div>
-  </nav>
+            <ul class="dropdown-menu dropdown-menu-end shadow border-0 zythera-dropdown mt-2" style="min-width:190px;">
+              <?php if ($userRole !== 'admin'): ?>
+                <li><a class="dropdown-item py-2" href="profile.php">My Profile</a></li>
+              <?php endif; ?>
+              <?php if ($userRole === 'admin'): ?>
+                <li><a class="dropdown-item py-2" href="admin.php">Admin Panel</a></li>
+              <?php endif; ?>
+              <li><hr class="dropdown-divider my-1"></li>
+              <li><a class="dropdown-item py-2 text-danger" href="javascript:void(0)" onclick="openLogoutModal()">Logout</a></li>
+            </ul>
+          </div>
+        </li>
 
-  <!-- Logout Confirmation Modal -->
+        <?php if ($userRole !== 'admin'): ?>
+        <!-- Cart -->
+        <li class="nav-item">
+          <a href="javascript:void(0)" onclick="openCart()" class="nav-cart-btn position-relative" title="Cart">
+            <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+            </svg>
+            <span id="cart-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill"
+              style="font-size:.5rem;background:var(--green);color:#fff;<?= $cartCount == 0 ? 'display:none;' : '' ?>">
+              <?= $cartCount ?>
+            </span>
+          </a>
+        </li>
+        <?php endif; ?>
+
+        <?php else: ?>
+        <!-- Guest: Log In + Cart -->
+        <li class="nav-item">
+          <a href="logsign.php" class="btn btn-success btn-sm rounded-pill px-4 fw-semibold ms-1">Log In</a>
+        </li>
+        <li class="nav-item">
+          <a href="logsign.php" class="nav-cart-btn position-relative ms-1" title="Cart">
+            <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+            </svg>
+          </a>
+        </li>
+        <?php endif; ?>
+
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Logout Confirmation Modal -->
 <div id="logoutModalOverlay" class="logout-modal-overlay">
     <div class="logout-modal">
         <h2>Log Out Confirmation</h2>
@@ -553,59 +302,8 @@ if ($userEmail && isset($_SESSION['cart'][$userEmail])) {
   </div>
 </section>
 
-
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    function openLogoutModal() {
-      const overlay = document.getElementById('logoutModalOverlay');
-      if (overlay) {
-        overlay.classList.add('active');
-        document.body.style.overflow = 'hidden';
-      }
-    }
-
-    function closeLogoutModal(event) {
-      if (event && event.target.id !== 'logoutModalOverlay') return;
-      const overlay = document.getElementById('logoutModalOverlay');
-      if (overlay) {
-        overlay.classList.remove('active');
-        document.body.style.overflow = '';
-      }
-    }
-
-    function performLogout() {
-      const confirmBtn = document.querySelector('.logout-btn-confirm');
-      if (confirmBtn) {
-        confirmBtn.disabled = true;
-        confirmBtn.textContent = 'Logging out...';
-      }
-      window.location.href = 'logout.php';
-    }
-
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') closeLogoutModal();
-    });
-
-    document.addEventListener('click', function(e) {
-      const overlay = document.getElementById('logoutModalOverlay');
-      if (overlay && e.target === overlay) closeLogoutModal(e);
-    });
-
-    // ── Live time update for nav-user-capsule ──
-    function updateTime() {
-      const el = document.getElementById('liveTime');
-      if (el) el.textContent = new Date().toLocaleString('en-PH', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-    }
-    setInterval(updateTime, 1000);
-    updateTime();
-  </script>
+  
 
   <footer class="about-footer">
     <div class="container">
@@ -658,5 +356,7 @@ if ($userEmail && isset($_SESSION['cart'][$userEmail])) {
       </div>
     </div>
   </footer>
+
+  <script src="assets/js/about.js"></script>
 </body>
 </html>

@@ -16,6 +16,9 @@ if ($userRole === 'admin') {
 
 $db    = getDBConnection();
 $dbUser = findUserByEmail($userEmail);
+$uObj = $dbUser;
+$userName = $dbUser->name ?? '';
+$loginTime = $_SESSION['login_time'] ?? null;
 
 if (!$dbUser) {
     header('Location: logsign.php');
@@ -94,112 +97,115 @@ function getStepIndex(string $status): int {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ZYTHERA | My Orders</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,700&family=Roboto:wght@300;400;500;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
-<style>
-  :root{--logo-font:'Playfair Display',serif;--ui-font:'Roboto',sans-serif;--text-font:'Merriweather',serif}
-  body{font-family:var(--ui-font);}
-  h1,h2,h3,h4,h5,.navbar-brand,.brand-name,.section-title,.page-header h2,footer .footer-brand{font-family:var(--logo-font);}
-  p,small,.caption,.text-muted{font-family:var(--text-font);}
-</style>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-<link rel="stylesheet" href="dark-mode.css">
-<script src="dark-mode.js" defer></script>
-<style>
-    :root {
-        --green: #2d5a2d;
-        --sage: #d4e4d4;
-        --cream: #f5f2ec;
-        --deep: #1a2e1a;
-        --mid: #7aab7a;
-        --terra: #bc8a7b;
-    }
-    * { font-family: var(--ui-font); box-sizing: border-box; }
-    body { background: var(--cream); display: flex; flex-direction: column; min-height: 100vh; margin: 0; }
-    .navbar { background: #fff; box-shadow: 0 1px 12px rgba(0,0,0,.07); }
-    .navbar-brand { font-family: 'Playfair Display', serif; color: var(--green) !important; letter-spacing: 4px; font-size: 1.5rem; }
-
-    /* ── Page header ── */
-    .page-header { padding: 32px 0 8px; }
-    .page-header h2 { font-family: 'Playfair Display', serif; color: var(--deep); margin: 0; }
-    .section-label { font-size: .68rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--mid); margin-bottom: 4px; }
-
-    /* ── Section card — white card wrapper (same as profile.php) ── */
-    .section-card {
-        background: #fff;
-        border-radius: 16px;
-        padding: 24px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 12px rgba(0,0,0,.05);
-    }
-
-    /* ── Order box — same border card as profile.php ── */
-    .order-box {
-        border: 2px solid var(--sage);
-        border-radius: 14px;
-        padding: 16px;
-        margin-bottom: 14px;
-        transition: .2s;
-    }
-    .order-box:hover { border-color: var(--mid); }
-
-    /* ── Status pills — same as profile.php st-* ── */
-    .order-status {
-        display: inline-block;
-        font-size: .68rem;
-        font-weight: 700;
-        padding: 4px 12px;
-        border-radius: 20px;
-        letter-spacing: .5px;
-        text-transform: uppercase;
-    }
-    .st-pending    { background: #fef9c3; color: #b45309; }
-    .st-processing { background: #dbeafe; color: #1d4ed8; }
-    .st-shipped    { background: #e0f2fe; color: #0369a1; }
-    .st-completed,
-    .st-delivered  { background: #dcfce7; color: #16a34a; }
-    .st-cancelled  { background: #fee2e2; color: #b91c1c; }
-
-    /* ── Timeline ── */
-    .timeline-wrap { display: flex; align-items: flex-start; justify-content: space-between; padding: 18px 0 8px; position: relative; }
-    .timeline-wrap::before { content: ''; position: absolute; top: 28px; left: calc(12.5% - 1px); width: 75%; height: 3px; background: var(--sage); z-index: 0; }
-    .tl-step { flex: 1; text-align: center; position: relative; z-index: 1; }
-    .tl-dot { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: .82rem; border: 3px solid var(--sage); background: #fff; transition: .3s; }
-    .tl-dot.done   { background: var(--green); border-color: var(--green); color: #fff; }
-    .tl-dot.active { background: var(--green); border-color: var(--green); color: #fff; box-shadow: 0 0 0 5px rgba(45,90,45,.18); animation: pulse 1.8s infinite; }
-    .tl-dot.future { background: #fff; border-color: var(--sage); color: #ccc; }
-    .tl-line-done { position: absolute; top: 14px; left: 50%; width: 100%; height: 3px; background: var(--green); z-index: 0; }
-    .tl-label { font-size: .72rem; font-weight: 600; color: var(--deep); }
-    .tl-label.future { color: #bbb; }
-    @keyframes pulse { 0%,100%{box-shadow:0 0 0 4px rgba(45,90,45,.18);}50%{box-shadow:0 0 0 8px rgba(45,90,45,.08);} }
-
-    /* ── Cancelled bar ── */
-    .cancelled-bar { display: flex; align-items: center; gap: 10px; background: #fef2f2; border-radius: 14px; padding: 14px 18px; color: #b91c1c; font-weight: 600; font-size: .88rem; border: 1px solid #fecaca; margin-bottom: 8px; }
-
-    /* ── Totals — same as profile.php totals-row ── */
-    .totals-box { background: var(--cream); border-radius: 14px; padding: 14px 18px; margin-top: 4px; }
-    .totals-row { display: flex; justify-content: space-between; font-size: .85rem; color: #777; padding: 3px 0; }
-    .totals-row.grand { font-size: 1rem; font-weight: 800; color: var(--green); border-top: 2px solid var(--sage); padding-top: 10px; margin-top: 6px; }
-
-    /* ── Empty state ── */
-    .empty-state { text-align: center; padding: 60px 20px; color: #bbb; }
-    .empty-state i { font-size: 3rem; margin-bottom: 16px; display: block; }
-
-    footer { background: #f5f2ec; padding: 22px 20px; display: flex; align-items: center; justify-content: center; gap: 12px; border-top: 1px solid #e8e4dc; margin-top: auto; }
-    footer .footer-brand { font-family: 'Playfair Display', serif; color: var(--green); font-size: 1rem; letter-spacing: 4px; }
-</style>
-<link rel="stylesheet" href="responsive.css">
+<link rel="stylesheet" href="assets/css/responsive.css">
+  <link rel="stylesheet" href="assets/css/orders.css">
+  
 </head>
 <body style="display:flex;flex-direction:column;min-height:100vh;">
 
-<nav class="navbar navbar-light px-4 py-2 fixed-top">
-  <a class="navbar-brand fw-bold" href="website.php"><span style="font-family:'Playfair Display',serif;color:#1a2e1a;font-weight:700;"> ZYTHERA </span></a>
-  <div class="ms-auto d-flex gap-2 align-items-center">
-    <a href="website.php" class="btn btn-sm btn-outline-success rounded-pill">Shop</a>
-    <a href="profile.php" class="btn btn-sm btn-light rounded-pill">My Profile</a>
-    <a href="javascript:void(0)" onclick="openLogoutModal()" class="btn btn-sm btn-danger rounded-pill">Logout</a>
+<nav class="navbar navbar-expand-lg fixed-top">
+  <div class="container">
+
+    <a class="navbar-brand fw-bold" href="website.php">
+      <span style="font-family:'Playfair Display',serif;color:var(--deep);font-weight:700;letter-spacing:2px;"> ZYTHERA </span>
+    </a>
+
+    <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navMenu">
+      <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-1">
+
+        <!-- Home -->
+        <li class="nav-item">
+          <a href="website.php" class="nav-link fw-semibold">Home</a>
+        </li>
+
+        <!-- Menu dropdown -->
+        <li class="nav-item dropdown">
+          <a href="#" class="nav-link fw-semibold dropdown-toggle zythera-menu-toggle" id="menuDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Menu
+          </a>
+          <ul class="dropdown-menu shadow border-0 zythera-dropdown" aria-labelledby="menuDropdown">
+            <li><a class="dropdown-item" href="about.php">About</a></li>
+            <li><a class="dropdown-item" href="website.php#contact">Contact Us</a></li>
+            <li><a class="dropdown-item" href="website.php#products">Products</a></li>
+          </ul>
+        </li>
+
+        <?php if ($userEmail && $userRole !== 'admin'): ?>
+        <!-- My Orders -->
+        <li class="nav-item">
+          <a href="profile.php?tab=orders" class="nav-link fw-semibold">My Orders</a>
+        </li>
+        <?php endif; ?>
+
+        <?php if ($userEmail): ?>
+        <!-- Profile Capsule -->
+        <li class="nav-item">
+          <div class="nav-user-capsule dropdown">
+            <div class="d-flex align-items-center gap-2" data-bs-toggle="dropdown" style="cursor:pointer;" aria-expanded="false">
+              <div class="text-end d-none d-md-block">
+                <p class="mb-0 fw-bold" style="font-size:.75rem;color:var(--green);line-height:1.2;"><?= htmlspecialchars($userName) ?></p>
+                <?php if ($loginTime): ?>
+                  <small class="text-muted" style="font-size:.58rem;"><span id="liveTime"></span></small>
+                <?php endif; ?>
+              </div>
+              <?php $navPic = getAvatarURL($uObj->profile_pic ?? null, $uObj->email ?? null, $userName, 34); ?>
+              <img src="<?= htmlspecialchars($navPic) ?>" class="rounded-circle" width="32" height="32"
+                style="object-fit:cover;border:2px solid rgba(45,90,45,.2);" alt="<?= htmlspecialchars($userName) ?>">
+            </div>
+            <ul class="dropdown-menu dropdown-menu-end shadow border-0 zythera-dropdown mt-2" style="min-width:190px;">
+              <?php if ($userRole !== 'admin'): ?>
+                <li><a class="dropdown-item py-2" href="profile.php">My Profile</a></li>
+              <?php endif; ?>
+              <?php if ($userRole === 'admin'): ?>
+                <li><a class="dropdown-item py-2" href="admin.php">Admin Panel</a></li>
+              <?php endif; ?>
+              <li><hr class="dropdown-divider my-1"></li>
+              <li><a class="dropdown-item py-2 text-danger" href="javascript:void(0)" onclick="openLogoutModal()">Logout</a></li>
+            </ul>
+          </div>
+        </li>
+
+        <?php if ($userRole !== 'admin'): ?>
+        <!-- Cart -->
+        <li class="nav-item">
+          <a href="javascript:void(0)" onclick="openCart()" class="nav-cart-btn position-relative" title="Cart">
+            <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+            </svg>
+            <span id="cart-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill"
+              style="font-size:.5rem;background:var(--green);color:#fff;<?= $cartCount == 0 ? 'display:none;' : '' ?>">
+              <?= $cartCount ?>
+            </span>
+          </a>
+        </li>
+        <?php endif; ?>
+
+        <?php else: ?>
+        <!-- Guest: Log In + Cart -->
+        <li class="nav-item">
+          <a href="logsign.php" class="btn btn-success btn-sm rounded-pill px-4 fw-semibold ms-1">Log In</a>
+        </li>
+        <li class="nav-item">
+          <a href="logsign.php" class="nav-cart-btn position-relative ms-1" title="Cart">
+            <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+            </svg>
+          </a>
+        </li>
+        <?php endif; ?>
+
+      </ul>
+    </div>
   </div>
 </nav>
-<div style="height:60px;"></div>
 
 <div class="flex-fill">
 <div class="container py-4" style="max-width:780px;">
@@ -458,39 +464,7 @@ function getStepIndex(string $status): int {
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-function pollOrderStatuses() {
-  fetch('get_order.php', { credentials: 'same-origin' })
-    .then(r => r.json())
-    .then(data => {
-      if (!data.orders) return;
-      data.orders.forEach(o => {
-        const badge = document.querySelector('[data-order-id="' + o.order_id + '"] .dyn-status-badge');
-        if (badge) {
-          badge.textContent = o.status;
-          badge.className   = 'order-status dyn-status-badge ' + statusClass(o.status);
-        }
-        const msg = document.querySelector('[data-order-id="' + o.order_id + '"] .dyn-status-msg');
-        if (msg) msg.textContent = statusMsg(o.status);
-      });
-    }).catch(() => {});
-}
-function statusClass(s) {
-  const m = { pending:'st-pending', processing:'st-processing', shipped:'st-shipped', delivered:'st-delivered', completed:'st-delivered', cancelled:'st-cancelled' };
-  return m[s.toLowerCase()] || 'st-pending';
-}
-function statusMsg(s) {
-  const m = {
-    'Pending':    'Your order has been received and is awaiting confirmation.',
-    'Processing': 'We re preparing your furniture for shipment.',
-    'Shipped':    'Your order is on its way! Estimated arrival in 3–7 business days.',
-    'Delivered':  'Your order has been delivered. Enjoy your new furniture!',
-    'Completed':  'Order completed. Thank you for shopping with us!',
-    'Cancelled':  'This order was cancelled.',
-  };
-  return m[s] || 'Your order is being processed.';
-}
-setInterval(pollOrderStatuses, 30000);
-</script>
+
+  <script src="assets/js/orders.js"></script>
 </body>
 </html>

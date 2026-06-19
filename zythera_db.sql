@@ -21,7 +21,6 @@ INSERT IGNORE INTO id_counters (prefix, last_seq) VALUES
     ('OR',  0),   -- Orders          → OR-ZY001
     ('PAY', 0),   -- Payments        → PAY-ZY001
     ('U',   0),   -- Users           → U-ZY001
-    ('AD',  0),   -- Admins          → AD-ZY001
     ('REV', 0),   -- Reviews         → REV-ZY001
     ('ODR', 0),   -- Order Items     → ODR-ZY001
     ('ADR', 0),   -- User Addresses  → ADR-ZY001
@@ -62,22 +61,8 @@ CREATE TABLE IF NOT EXISTS users (
     email        VARCHAR(100) NOT NULL UNIQUE,
     password     VARCHAR(255) NOT NULL,
     user_pfp     VARCHAR(255),
-    phone_num    VARCHAR(20),
-    birthday     DATE,
     date_created DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id)
-) ENGINE=InnoDB;
-
--- ============================================================
--- 2. ADMINS TABLE
--- ============================================================
-CREATE TABLE IF NOT EXISTS admins (
-    admin_id    VARCHAR(20)  NOT NULL,
-    admin_fname VARCHAR(100) NOT NULL,
-    email       VARCHAR(255) NOT NULL UNIQUE,
-    password    VARCHAR(255) NOT NULL,
-    admin_pfp   VARCHAR(500),
-    PRIMARY KEY (admin_id)
 ) ENGINE=InnoDB;
 
 -- ============================================================
@@ -86,14 +71,12 @@ CREATE TABLE IF NOT EXISTS admins (
 CREATE TABLE IF NOT EXISTS user_address (
     address_id        VARCHAR(20)  NOT NULL,
     user_id           VARCHAR(20)  NOT NULL,
-    address_label     VARCHAR(20) NOT NULL DEFAULT 'Home',
     phone_num         VARCHAR(20) NOT NULL,
     province          VARCHAR(100) NOT NULL,
     city_municipality VARCHAR(100) NOT NULL,
     barangay          VARCHAR(100) NOT NULL,
     st_address        VARCHAR(255) NOT NULL,
     zip_code          VARCHAR(10) NOT NULL,
-    is_default        TINYINT(1) NOT NULL DEFAULT 0,
     PRIMARY KEY (address_id),
     CONSTRAINT fk_ua_user FOREIGN KEY (user_id) REFERENCES users (user_id)
         ON UPDATE CASCADE ON DELETE CASCADE
@@ -208,22 +191,6 @@ INSERT INTO category (category_id, category_name) VALUES
 ON DUPLICATE KEY UPDATE category_id = category_id;
 
 -- ============================================================
--- SEED ADMIN ACCOUNTS  (password: 123456qw)
--- ============================================================
-CALL generate_custom_id('AD', @ad1);
-CALL generate_custom_id('AD', @ad2);
-CALL generate_custom_id('AD', @ad3);
-
-INSERT INTO admins (admin_id, admin_fname, email, password, admin_pfp) VALUES
-    (@ad1, 'Zythera Admin', 'zythera@gmail.com', '$2y$10$WHqvKNeQDyTM9lWhI0aYgewH8d872dzE3L/mruHcmQQHeDI0kouO.', 'pci/beti.jpg'),
-    (@ad2, 'System Admin',  'admin@gmail.com',   '$2y$10$WHqvKNeQDyTM9lWhI0aYgewH8d872dzE3L/mruHcmQQHeDI0kouO.', 'pci/admin.jpg'),
-    (@ad3, 'Mei',           'mei@gmail.com',     '$2y$10$WHqvKNeQDyTM9lWhI0aYgewH8d872dzE3L/mruHcmQQHeDI0kouO.', 'pci/mei.jpg')
-ON DUPLICATE KEY UPDATE
-    admin_fname = VALUES(admin_fname),
-    password    = VALUES(password),
-    admin_pfp   = VALUES(admin_pfp);
-
--- ============================================================
 -- SEED PRODUCT INVENTORY
 -- ============================================================
 CALL generate_custom_id('PRD', @p01);
@@ -251,21 +218,3 @@ INSERT INTO product_inv (prod_id, category_id, prod_name, prod_desc, prod_size, 
     (@p08, @cid_sofa,  'Light Gray Sectional Sofa',      'Minimalist L-shaped sofa with plush light gray upholstery paired with a marble-top coffee table.',                    'L250 x W160 x H90 cm', 'Light Gray, Dark Metal',  5, 27499.00, 'pci/download_(5).jpeg'),
     (@p09, @cid_chair, 'Classic Dining Chair Set',       'High-back dining chairs with beige fabric upholstery and solid walnut wood legs, sold as a pair.',                    'L58 x W52 x H88 cm',   'Beige, Walnut',         10,  9499.00, 'pci/download.jpeg'),
     (@p10, @cid_sofa,  'Gray Metal Frame Sofa Set',      'Industrial-style living room sofa set with gray cushions, black metal frames, and matching armchairs and coffee table.','L220 x W80 x H85 cm', 'Gray, Black',            9, 24999.00, 'pci/images_(3).jpeg');
--- ============================================================
--- MIGRATION: Add pay_proof column to existing payment table
--- Safe to run on existing databases (IF NOT EXISTS equivalent)
--- ============================================================
-ALTER TABLE payment
-  ADD COLUMN IF NOT EXISTS pay_proof VARCHAR(255) DEFAULT NULL;
-  
-  UPDATE product_inv SET prod_color = 'Blue' WHERE prod_name = 'Blue Accent Chair';
-UPDATE product_inv SET prod_color = 'Gray' WHERE prod_name = 'Industrial Gray Sectional Sofa';
-UPDATE product_inv SET prod_color = 'Beige' WHERE prod_name = 'Beige Upholstered Dining Chairs';
-UPDATE product_inv SET prod_color = 'Cream' WHERE prod_name = 'Curved Cream Dining Chairs';
-UPDATE product_inv SET prod_color = 'Taupe' WHERE prod_name = 'Classic Tufted Sofa';
-UPDATE product_inv SET prod_color = 'Taupe' WHERE prod_name = 'Taupe Dining Chairs';
-UPDATE product_inv SET prod_color = 'White' WHERE prod_name = 'Modern White Armchair';
-UPDATE product_inv SET prod_color = 'Light Gray' WHERE prod_name = 'Light Gray Sectional Sofa';
-UPDATE product_inv SET prod_color = 'Beige' WHERE prod_name = 'Classic Dining Chair Set';
-UPDATE product_inv SET prod_color = 'Gray' WHERE prod_name = 'Gray Metal Frame Sofa Set';
-
